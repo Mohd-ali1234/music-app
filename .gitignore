@@ -1,0 +1,11 @@
+# Node / Expo dependencies
+node_modules/
+.expo/
+dist/
+
+# Python dependencies
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
