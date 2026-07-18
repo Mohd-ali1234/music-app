@@ -21,11 +21,11 @@ export default function PlaylistDetail() {
   const load = useCallback(async () => {
     try {
       if (isLiked) {
-        const tracks = await api.get<Song[]>('/library/liked');
+        const { songs: tracks = [] } = await api.get<{ songs?: Song[] }>('/library/likes');
         setData({ name: 'Liked Songs', description: 'Songs you love', tracks, cover: tracks[0]?.artwork });
       } else {
-        const d = await api.get<any>(`/playlists/${id}`);
-        setData({ name: d.name, description: d.description, cover: d.cover, tracks: d.tracks || [] });
+        const { playlist } = await api.get<{ playlist: any }>(`/playlists/${id}`);
+        setData({ name: playlist.name, description: playlist.description, cover: playlist.cover, tracks: playlist.songs || [] });
       }
     } catch (e) { console.warn(e); }
     finally { setLoading(false); }

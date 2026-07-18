@@ -1,0 +1,1 @@
+{"platforms":["android","apple"],"android":{"modules":["expo.modules.nativestreamresolver.NativeStreamResolverModule"]},"apple":{"modules":["NativeStreamResolverModule"]}}

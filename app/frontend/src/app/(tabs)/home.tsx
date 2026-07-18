@@ -1,25 +1,27 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { theme } from '@/src/theme';
-import { api, Song } from '@/src/lib/api';
-import { useAuth } from '@/src/lib/auth';
-import { usePlayer } from '@/src/lib/player';
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 18) return 'Good Afternoon';
-  return 'Good Evening';
-}
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { theme } from "@/src/theme";
+import { api, Song } from "@/src/lib/api";
+import { useAuth } from "@/src/lib/auth";
+import { usePlayer } from "@/src/lib/player";
+import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
 
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
-  const playQueue = usePlayer(s => s.playQueue);
+  const playQueue = usePlayer((s) => s.playQueue);
 
   const [trending, setTrending] = useState<Song[]>([]);
   const [recent, setRecent] = useState<Song[]>([]);
@@ -28,103 +30,187 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [t, r] = await Promise.all([
-        api.get<Song[]>('/songs/trending/list'),
-        api.get<Song[]>('/library/recent'),
-      ]);
-      setTrending(t || []);
-      setRecent(r || []);
-    } catch (e) { console.warn(e); }
-    finally { setLoading(false); setRefreshing(false); }
+      const feed = await api.get<{
+        made_for_you?: Song[];
+        recently_played?: Song[];
+      }>("/home/feed");
+      setTrending(Array.isArray(feed.made_for_you) ? feed.made_for_you : []);
+      setRecent(
+        Array.isArray(feed.recently_played) ? feed.recently_played : [],
+      );
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const continueTrack = recent[0] || trending[0];
+  const featured = trending[0];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#FFF" />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              load();
+            }}
+            tintColor={theme.colors.text}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greet}>{greeting()} <Text>👋</Text></Text>
-            <Text style={styles.subgreet}>{user?.name || 'Enjoy your favorite music'}</Text>
+          <View style={{ flex: 1 }}>
+            <BrutalHeading size="lg" testID="brand-title">
+              BRUTAL.
+            </BrutalHeading>
+            <BrutalLabel style={styles.subtitle}>
+              MUSIC WITHOUT{"n"}COMPROMISE
+            </BrutalLabel>
           </View>
-          <Pressable testID="notifications-btn" hitSlop={10} style={styles.bell}>
-            <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
-            <View style={styles.dot} />
+          <Pressable
+            testID="notifications-btn"
+            hitSlop={12}
+            style={styles.iconBtn}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={22}
+              color={theme.colors.text}
+            />
           </Pressable>
         </View>
 
         {loading ? (
-          <View style={styles.loading}><ActivityIndicator color={theme.colors.brand} /></View>
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.colors.text} size="large" />
+          </View>
         ) : (
           <>
-            {continueTrack && (
-              <Pressable
-                testID="continue-listening-card"
-                onPress={() => playQueue(recent.length ? recent : trending, 0, recent.length ? 'recently_played' : 'home')}
-                style={styles.continueCard}
-              >
-                <Image source={continueTrack.artwork ? { uri: continueTrack.artwork } : undefined} style={styles.continueArt} />
-                <View style={styles.continueInfo}>
-                  <Text style={styles.continueLabel}>Continue Listening</Text>
-                  <Text style={styles.continueTitle} numberOfLines={1}>{continueTrack.title}</Text>
-                  <Text style={styles.continueArtist} numberOfLines={1}>{continueTrack.artist}</Text>
-                </View>
-                <View style={styles.continuePlay}>
-                  <Ionicons name="play" size={20} color={theme.colors.text} />
-                </View>
-              </Pressable>
+            {featured && (
+              <View style={styles.featuredBlock}>
+                <BrutalLabel style={styles.section}>FEATURED</BrutalLabel>
+                <Pressable
+                  testID="featured-card"
+                  onPress={() => playQueue(trending, 0, "home")}
+                  style={styles.featured}
+                >
+                  <Image
+                    source={
+                      featured.artwork ? { uri: featured.artwork } : undefined
+                    }
+                    style={styles.featuredImage}
+                    contentFit="cover"
+                  />
+                  <View style={styles.featuredOverlay} />
+                  <View style={styles.featuredContent}>
+                    <View style={{ flex: 1 }}>
+                      <BrutalHeading size="md" numberOfLines={2}>
+                        {featured.title.toUpperCase()}
+                      </BrutalHeading>
+                      <BrutalLabel style={styles.featuredMeta}>
+                        CURATED · {featured.artist.toUpperCase()}
+                      </BrutalLabel>
+                    </View>
+                    <View style={styles.featuredPlay}>
+                      <Ionicons
+                        name="play"
+                        size={22}
+                        color={theme.colors.background}
+                      />
+                    </View>
+                  </View>
+                </Pressable>
+              </View>
             )}
 
             {recent.length > 0 && (
               <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Recently Played</Text>
+                <View style={styles.sectionHead}>
+                  <BrutalLabel>RECENTLY PLAYED</BrutalLabel>
+                  <BrutalLabel color={theme.colors.text}>SEE ALL</BrutalLabel>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hList}>
-                  {recent.map((s) => (
+                <View style={styles.list}>
+                  {recent.slice(0, 4).map((s, i) => (
                     <Pressable
                       key={s.id}
                       testID={`recent-card-${s.id}`}
-                      style={styles.tile}
-                      onPress={() => playQueue(recent, recent.findIndex(r => r.id === s.id), 'recently_played')}
+                      onPress={() => playQueue(recent, i, "recently_played")}
+                      style={styles.listRow}
                     >
-                      <Image source={s.artwork ? { uri: s.artwork } : undefined} style={styles.tileArt} />
-                      <Text style={styles.tileTitle} numberOfLines={1}>{s.title}</Text>
-                      <Text style={styles.tileArtist} numberOfLines={1}>{s.artist}</Text>
+                      <Image
+                        source={s.artwork ? { uri: s.artwork } : undefined}
+                        style={styles.listArt}
+                        contentFit="cover"
+                      />
+                      <View style={styles.listInfo}>
+                        <Text style={styles.listTitle} numberOfLines={1}>
+                          {s.title.toUpperCase()}
+                        </Text>
+                        <Text style={styles.listArtist} numberOfLines={1}>
+                          {s.artist.toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.listAction}>
+                        <Ionicons
+                          name="play"
+                          size={16}
+                          color={theme.colors.text}
+                        />
+                      </View>
                     </Pressable>
                   ))}
-                </ScrollView>
+                </View>
               </View>
             )}
 
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Made For You</Text>
+            {trending.length > 1 && (
+              <View style={styles.section}>
+                <BrutalLabel style={{ marginBottom: 16 }}>TRENDING</BrutalLabel>
+                <View style={styles.list}>
+                  {trending.slice(1, 6).map((s, i) => (
+                    <Pressable
+                      key={s.id}
+                      testID={`trending-card-${s.id}`}
+                      onPress={() => playQueue(trending, i + 1, "home")}
+                      style={styles.listRow}
+                    >
+                      <Image
+                        source={s.artwork ? { uri: s.artwork } : undefined}
+                        style={styles.listArt}
+                        contentFit="cover"
+                      />
+                      <View style={styles.listInfo}>
+                        <Text style={styles.listTitle} numberOfLines={1}>
+                          {s.title.toUpperCase()}
+                        </Text>
+                        <Text style={styles.listArtist} numberOfLines={1}>
+                          {s.artist.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Pressable style={styles.moreBtn} hitSlop={10}>
+                        <Ionicons
+                          name="ellipsis-horizontal"
+                          size={16}
+                          color={theme.colors.textMuted}
+                        />
+                      </Pressable>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hList}>
-                {trending.map((s) => (
-                  <Pressable
-                    key={s.id}
-                    testID={`trending-card-${s.id}`}
-                    style={styles.tile}
-                    onPress={() => playQueue(trending, trending.findIndex(t => t.id === s.id), 'home')}
-                  >
-                    <Image source={s.artwork ? { uri: s.artwork } : undefined} style={styles.tileArt} />
-                    <Text style={styles.tileTitle} numberOfLines={1}>{s.title}</Text>
-                    <Text style={styles.tileArtist} numberOfLines={1}>{s.artist}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
+            )}
 
-            <View style={{ height: 140 }} />
+            <View style={styles.bottomSpacer} />
           </>
         )}
       </ScrollView>
@@ -133,34 +219,98 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.bg },
-  scroll: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xl },
-  greet: { color: theme.colors.text, fontSize: 24, fontWeight: '700' },
-  subgreet: { color: theme.colors.textDim, fontSize: 13, marginTop: 4 },
-  bell: { padding: theme.spacing.sm, position: 'relative' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.brand, position: 'absolute', top: 6, right: 6 },
-  loading: { paddingVertical: 80, alignItems: 'center' },
-  continueCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg,
-    padding: theme.spacing.md, gap: theme.spacing.md, marginBottom: theme.spacing.xl,
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  scroll: { paddingBottom: 180 },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
   },
-  continueArt: { width: 60, height: 60, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface2 },
-  continueInfo: { flex: 1 },
-  continueLabel: { color: theme.colors.textDim, fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  continueTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
-  continueArtist: { color: theme.colors.textDim, fontSize: 12, marginTop: 2 },
-  continuePlay: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: theme.colors.surface2, alignItems: 'center', justifyContent: 'center',
+  subtitle: { marginTop: 10, lineHeight: 14 },
+  iconBtn: { padding: 4 },
+  loading: { paddingVertical: 80, alignItems: "center" },
+  featuredBlock: { paddingHorizontal: 20, marginBottom: 32 },
+  section: { marginBottom: 32, paddingHorizontal: 20 },
+  sectionHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  section: { marginBottom: theme.spacing.xl },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md, gap: theme.spacing.sm },
-  sectionTitle: { color: theme.colors.text, fontSize: 17, fontWeight: '600' },
-  hList: { gap: theme.spacing.md, paddingRight: theme.spacing.lg },
-  tile: { width: 140 },
-  tileArt: { width: 140, height: 140, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface, marginBottom: theme.spacing.sm },
-  tileTitle: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
-  tileArtist: { color: theme.colors.textDim, fontSize: 11, marginTop: 2 },
+  featured: {
+    marginTop: 12,
+    aspectRatio: 1.35,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: theme.colors.card,
+  },
+  featuredImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  featuredOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(9,9,9,0.55)",
+  },
+  featuredContent: {
+    flex: 1,
+    padding: 20,
+    justifyContent: "flex-end",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 16,
+  },
+  featuredMeta: { marginTop: 10 },
+  featuredPlay: {
+    width: 52,
+    height: 52,
+    backgroundColor: theme.colors.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  list: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  listArt: { width: 52, height: 52, backgroundColor: theme.colors.secondary },
+  listInfo: { flex: 1, minWidth: 0 },
+  listTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  listArtist: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    marginTop: 3,
+    letterSpacing: 1.5,
+    fontWeight: "600",
+  },
+  listAction: {
+    width: 36,
+    height: 36,
+    backgroundColor: theme.colors.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreBtn: { padding: 8 },
+  bottomSpacer: { height: 40 },
 });
+// "
+// Observation: Overwrite successful: /app/frontend/src/app/(tabs)/home.tsx

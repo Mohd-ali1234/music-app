@@ -1,8 +1,16 @@
 import { create } from "zustand";
 import { createAudioPlayer, AudioPlayer, setAudioModeAsync } from "expo-audio";
 import { api, Song } from "./api";
-import { PlaybackContext, PlaybackSource, endListeningSession, heartbeat, startListeningSession, trackEvent } from "./analytics";
+import {
+  PlaybackContext,
+  PlaybackSource,
+  endListeningSession,
+  heartbeat,
+  startListeningSession,
+  trackEvent,
+} from "./analytics";
 import { playbackQueue } from "../services/queue/queue-manager";
+import { resolveStreamUrl } from "@/modules/native-stream-resolver/src";
 
 // Identifies the newest playback request. Stream/materialization requests can
 // finish out of order, but only the latest request may create an audio player.
@@ -22,15 +30,20 @@ function collectListeningTime(playing: boolean) {
   lastPlaybackTick = playing ? now : 0;
 }
 
-function flushHeartbeat(position: number) {
-  if (!analyticsSessionId || unreportedListeningSeconds <= 0) return;
+function flushHeartbeat(position: number, songId?: string) {
+  if (!analyticsSessionId || !songId || unreportedListeningSeconds <= 0) return;
   const sessionId = analyticsSessionId;
   const seconds = unreportedListeningSeconds;
   unreportedListeningSeconds = 0;
-  heartbeat(sessionId, position, seconds).catch(() => { unreportedListeningSeconds += seconds; });
+  heartbeat(sessionId, songId, position, seconds).catch(() => {
+    unreportedListeningSeconds += seconds;
+  });
 }
 
-function finishAnalytics(position: number, reason: "skipped" | "completed" | "stopped") {
+function finishAnalytics(
+  position: number,
+  reason: "skipped" | "completed" | "stopped",
+) {
   collectListeningTime(false);
   if (!analyticsSessionId) return;
   const sessionId = analyticsSessionId;
@@ -61,9 +74,16 @@ type PlayerState = {
   // actions
   loadLiked: () => Promise<void>;
   toggleLike: (songId: string) => Promise<void>;
-  playQueue: (songs: Song[], startIndex?: number, context?: PlaybackContext | PlaybackSource) => Promise<void>;
+  playQueue: (
+    songs: Song[],
+    startIndex?: number,
+    context?: PlaybackContext | PlaybackSource,
+  ) => Promise<void>;
   playFromQueue: (index: number) => Promise<void>;
-  playSong: (song: Song, context?: PlaybackContext | PlaybackSource) => Promise<void>;
+  playSong: (
+    song: Song,
+    context?: PlaybackContext | PlaybackSource,
+  ) => Promise<void>;
   togglePlay: () => void;
   next: () => Promise<void>;
   prev: () => Promise<void>;
@@ -90,8 +110,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   loadLiked: async () => {
     try {
-      const ids = await api.get<string[]>("/library/liked/ids");
-      set({ likedIds: new Set(ids) });
+      const { songs } = await api.get<{ songs?: Song[] }>("/library/likes");
+      set({ likedIds: new Set((songs ?? []).map((song) => song.id)) });
     } catch {}
   },
 
@@ -102,21 +122,26 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       next.delete(songId);
       set({ likedIds: next });
       try {
-        await api.del(`/library/like/${songId}`);
-        trackEvent("unliked", songId, analyticsSessionId, get().position).catch(() => {});
+        await api.del(`/library/likes/${songId}`);
+        trackEvent("unliked", songId, analyticsSessionId, get().position).catch(
+          () => {},
+        );
       } catch {}
     } else {
       next.add(songId);
       set({ likedIds: next });
       try {
-        await api.post(`/library/like/${songId}`);
-        trackEvent("liked", songId, analyticsSessionId, get().position).catch(() => {});
+        await api.post("/library/likes", { song_id: songId });
+        trackEvent("liked", songId, analyticsSessionId, get().position).catch(
+          () => {},
+        );
       } catch {}
     }
   },
 
   playQueue: async (songs, startIndex = 0, context = "queue") => {
-    activePlaybackContext = typeof context === "string" ? { source: context } : context;
+    activePlaybackContext =
+      typeof context === "string" ? { source: context } : context;
     const song = songs[startIndex];
     if (!song) return;
     set({ isLoading: true });
@@ -138,8 +163,10 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   playSong: async (song, context = "unknown") => {
-    const playbackContext = typeof context === "string" ? { source: context } : context;
-    if (playbackContext.source !== "unknown") activePlaybackContext = playbackContext;
+    const playbackContext =
+      typeof context === "string" ? { source: context } : context;
+    if (playbackContext.source !== "unknown")
+      activePlaybackContext = playbackContext;
     const requestId = ++playbackRequestId;
     const existing = get().player;
     if (existing) finishAnalytics(get().position, "skipped");
@@ -152,15 +179,19 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set({ player: null, isPlaying: false });
     let playableSong = song;
     try {
-      if (song.id.startsWith("external:") && song.yt_video_id) {
-        playableSong = await api.post<Song>("/songs/materialize", {
-          yt_video_id: song.yt_video_id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
-          duration: song.duration,
-          artwork: song.artwork,
-        });
+      if (song.id?.startsWith("external:") && song.yt_video_id) {
+        const materialized = await api.post<{ song: Song }>(
+          "/songs/materialize",
+          {
+            yt_video_id: song.yt_video_id,
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            duration_sec: song.duration,
+            artwork_url: song.artwork,
+          },
+        );
+        playableSong = materialized.song;
       }
       if (requestId !== playbackRequestId) return;
     } catch (e) {
@@ -177,9 +208,23 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       isPlaying: false,
     });
     try {
-      const res = await api.get<{ url: string; headers?: Record<string, string> }>(`/songs/${playableSong.id}/stream`);
+      let source: { streamUrl: string; headers?: Record<string, string> };
+      try {
+        if (!playableSong.yt_video_id) throw new Error("missing_yt_video_id");
+        source = await resolveStreamUrl(playableSong.yt_video_id);
+      } catch (nativeError) {
+        console.warn("native stream resolution failed; using backend fallback", nativeError);
+        const fallback = await api.get<{
+          stream_url: string;
+          headers?: Record<string, string>;
+        }>(`/songs/stream/${playableSong.id}`);
+        source = { streamUrl: fallback.stream_url, headers: fallback.headers };
+      }
       if (requestId !== playbackRequestId) return;
-      const p = createAudioPlayer({ uri: res.url, headers: res.headers });
+      const p = createAudioPlayer({
+        uri: source.streamUrl,
+        headers: source.headers,
+      });
       p.addListener("playbackStatusUpdate", (status: any) => {
         if (requestId !== playbackRequestId) return;
         if (!status) return;
@@ -196,11 +241,17 @@ export const usePlayer = create<PlayerState>((set, get) => ({
           position: pos,
           isPlaying: !!status.playing,
         });
-        if (unreportedListeningSeconds >= 10) flushHeartbeat(pos);
+        if (unreportedListeningSeconds >= 10)
+          flushHeartbeat(pos, playableSong.id);
         if (status.didJustFinish) {
           const { repeat } = get();
           if (repeat === "one") {
-            trackEvent("song_replayed", get().current?.id, analyticsSessionId, pos).catch(() => {});
+            trackEvent(
+              "song_replayed",
+              get().current?.id,
+              analyticsSessionId,
+              pos,
+            ).catch(() => {});
             try {
               p.seekTo(0);
               p.play();
@@ -212,16 +263,23 @@ export const usePlayer = create<PlayerState>((set, get) => ({
         }
       });
       if (requestId !== playbackRequestId) {
-        try { p.remove(); } catch {}
+        try {
+          p.remove();
+        } catch {}
         return;
       }
       p.play();
       set({ player: p, isLoading: false, isPlaying: true });
-      startListeningSession(playableSong.id, playableSong.duration || 0, playbackContext)
+      startListeningSession(
+        playableSong.id,
+        playableSong.duration || 0,
+        playbackContext,
+      )
         .then((id) => {
           if (requestId === playbackRequestId) analyticsSessionId = id;
           else endListeningSession(id, 0, 0, "skipped").catch(() => {});
-        }).catch(() => {});
+        })
+        .catch(() => {});
     } catch (e) {
       if (requestId !== playbackRequestId) return;
       console.warn("stream failed", e);
@@ -236,13 +294,23 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       collectListeningTime(false);
       p.pause();
       set({ isPlaying: false });
-      flushHeartbeat(get().position);
-      trackEvent("song_paused", get().current?.id, analyticsSessionId, get().position).catch(() => {});
+      flushHeartbeat(get().position, get().current?.id);
+      trackEvent(
+        "song_paused",
+        get().current?.id,
+        analyticsSessionId,
+        get().position,
+      ).catch(() => {});
     } else {
       p.play();
       set({ isPlaying: true });
       lastPlaybackTick = Date.now();
-      trackEvent("song_resumed", get().current?.id, analyticsSessionId, get().position).catch(() => {});
+      trackEvent(
+        "song_resumed",
+        get().current?.id,
+        analyticsSessionId,
+        get().position,
+      ).catch(() => {});
     }
   },
 
@@ -274,11 +342,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     const p = get().player;
     const from = get().position;
     collectListeningTime(false);
-    flushHeartbeat(from);
+    flushHeartbeat(from, get().current?.id);
     if (p) p.seekTo(sec);
     set({ position: sec });
     if (get().isPlaying) lastPlaybackTick = Date.now();
-    trackEvent("song_seeked", get().current?.id, analyticsSessionId, sec, { from_position: from, to_position: sec }).catch(() => {});
+    trackEvent("song_seeked", get().current?.id, analyticsSessionId, sec, {
+      from_position: from,
+      to_position: sec,
+    }).catch(() => {});
   },
 
   toggleShuffle: () => set({ shuffle: !get().shuffle }),

@@ -1,34 +1,57 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { theme } from '@/src/theme';
-import { api, Song, ArtistResult, AlbumResult } from '@/src/lib/api';
-import { usePlayer } from '@/src/lib/player';
-import SongRow from '@/src/components/SongRow';
+// Action: file_editor create /app/frontend/src/app/(tabs)/search.tsx --file-text "
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { theme } from "@/src/theme";
+import { api, Song, ArtistResult, AlbumResult } from "@/src/lib/api";
+import { usePlayer } from "@/src/lib/player";
+import SongRow from "@/src/components/SongRow";
+import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
 
-const TRENDING = ['Dua Lipa', 'The Weeknd', 'Harry Styles', 'Billie Eilish', 'Taylor Swift'];
+const CATEGORIES: { key: string; label: string; icon: any }[] = [
+  { key: "artists", label: "ARTISTS", icon: "person-outline" },
+  { key: "albums", label: "ALBUMS", icon: "disc-outline" },
+  { key: "songs", label: "SONGS", icon: "musical-note-outline" },
+  { key: "playlists", label: "PLAYLISTS", icon: "list-outline" },
+  { key: "genres", label: "GENRES", icon: "radio-outline" },
+  { key: "podcasts", label: "PODCASTS", icon: "mic-outline" },
+];
 
 export default function Search() {
   const router = useRouter();
-  const playQueue = usePlayer(s => s.playQueue);
-  const [q, setQ] = useState('');
+  const playQueue = usePlayer((s) => s.playQueue);
+  const [q, setQ] = useState("");
   const [results, setResults] = useState<Song[]>([]);
   const [artists, setArtists] = useState<ArtistResult[]>([]);
   const [albums, setAlbums] = useState<AlbumResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [recents, setRecents] = useState<string[]>([]);
-  const [source, setSource] = useState<'local' | 'external' | null>(null);
   const [searchId, setSearchId] = useState<string | null>(null);
   const debounceRef = useRef<any>(null);
   const requestRef = useRef(0);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!q.trim()) { requestRef.current++; setLoading(false); setResults([]); setArtists([]); setAlbums([]); setSource(null); return; }
-    debounceRef.current = setTimeout(() => doSearch(q.trim()), 450);
+    if (q.trim().length < 3) {
+      requestRef.current++;
+      setLoading(false);
+      setResults([]);
+      setArtists([]);
+      setAlbums([]);
+      return;
+    }
+    debounceRef.current = setTimeout(() => doSearch(q.trim()), 500);
     return () => debounceRef.current && clearTimeout(debounceRef.current);
   }, [q]);
 
@@ -36,166 +59,343 @@ export default function Search() {
     const requestId = ++requestRef.current;
     setLoading(true);
     try {
-      const res = await api.get<{ source: 'merged'; search_id: string; results: Song[]; songs?: Song[]; artists?: ArtistResult[]; albums?: AlbumResult[] }>(`/songs/search?q=${encodeURIComponent(query)}`);
+      const res = await api.get<any>(
+        `/songs/search?q=${encodeURIComponent(query)}`,
+      );
       if (requestId !== requestRef.current) return;
-      setResults(res.songs || res.results || []);
-      setArtists(res.artists || []);
-      setAlbums(res.albums || []);
-      setSource(res.source);
+      const songs = Array.isArray(res.songs)
+        ? res.songs
+        : Array.isArray(res.results)
+          ? res.results
+          : [];
+      setResults(songs);
+      setArtists(
+        (Array.isArray(res.artists) ? res.artists : []).map((artist: any) => ({
+          ...artist,
+          artwork: artist.artwork ?? artist.artwork_url,
+          songs: Array.isArray(artist.songs)
+            ? artist.songs
+            : songs.filter((song: Song) => song.artist === artist.name),
+        })),
+      );
+      setAlbums(
+        (Array.isArray(res.albums) ? res.albums : []).map((album: any) => ({
+          ...album,
+          title: album.title ?? album.name ?? "Unknown album",
+          artwork: album.artwork ?? album.artwork_url,
+        })),
+      );
       setSearchId(res.search_id);
-      setRecents(prev => [query, ...prev.filter(p => p !== query)].slice(0, 5));
-    } catch (e: any) {
-      if (requestId === requestRef.current) { setResults([]); setArtists([]); setAlbums([]); }
-    } finally { if (requestId === requestRef.current) setLoading(false); }
+      setRecents((prev) =>
+        [query, ...prev.filter((p) => p !== query)].slice(0, 5),
+      );
+    } catch {
+      if (requestId === requestRef.current) {
+        setResults([]);
+        setArtists([]);
+        setAlbums([]);
+      }
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
   };
 
   const clearRecents = () => setRecents([]);
 
-  const chip = (label: string, onPress: () => void, key: string) => (
-    <Pressable key={key} testID={`chip-${key}`} onPress={onPress} style={styles.chip}>
-      <Text style={styles.chipText}>{label}</Text>
-    </Pressable>
-  );
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={18} color={theme.colors.textDim} />
-          <TextInput
-            testID="search-input"
-            value={q}
-            onChangeText={setQ}
-            placeholder="Search songs, artists, albums..."
-            placeholderTextColor={theme.colors.textDim}
-            style={styles.searchInput}
-            autoCapitalize="none"
-            returnKeyType="search"
-          />
-          {q.length > 0 && (
-            <Pressable testID="search-clear" onPress={() => setQ('')} hitSlop={10}>
-              <Ionicons name="close-circle" size={18} color={theme.colors.textDim} />
-            </Pressable>
-          )}
-        </View>
+        <BrutalHeading size="lg">SEARCH</BrutalHeading>
+      </View>
+
+      <View style={styles.searchBar}>
+        <Ionicons
+          name="search-outline"
+          size={18}
+          color={theme.colors.textMuted}
+        />
+        <TextInput
+          testID="search-input"
+          value={q}
+          onChangeText={setQ}
+          placeholder="Search artists, songs, albums..."
+          placeholderTextColor={theme.colors.textMuted}
+          style={styles.searchInput}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {q.length > 0 && (
+          <Pressable
+            testID="search-clear"
+            onPress={() => setQ("")}
+            hitSlop={12}
+          >
+            <Ionicons name="close" size={18} color={theme.colors.textMuted} />
+          </Pressable>
+        )}
       </View>
 
       {q.trim().length === 0 ? (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <BrutalLabel style={styles.blockLabel}>BROWSE</BrutalLabel>
+          <View style={styles.grid}>
+            {CATEGORIES.map((c) => (
+              <Pressable
+                key={c.key}
+                testID={`cat-${c.key}`}
+                onPress={() => setQ(c.label)}
+                style={styles.gridItem}
+              >
+                <Text style={styles.gridLabel}>{c.label}</Text>
+                <Ionicons name={c.icon} size={18} color={theme.colors.text} />
+              </Pressable>
+            ))}
+          </View>
+
           {recents.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHead}>
-                <Text style={styles.sectionTitle}>Recent Searches</Text>
+            <View style={styles.recentSection}>
+              <View style={styles.recentHead}>
+                <BrutalLabel>RECENT SEARCHES</BrutalLabel>
                 <Pressable testID="clear-recent-btn" onPress={clearRecents}>
-                  <Text style={styles.clearLink}>Clear</Text>
+                  <BrutalLabel color={theme.colors.text}>CLEAR</BrutalLabel>
                 </Pressable>
               </View>
-              <View style={styles.chips}>
-                {recents.map((r, i) => chip(r, () => setQ(r), `recent-${i}`))}
+              <View style={styles.recentList}>
+                {recents.map((r, i) => (
+                  <Pressable
+                    key={`${r}-${i}`}
+                    testID={`chip-recent-${i}`}
+                    onPress={() => setQ(r)}
+                    style={styles.recentRow}
+                  >
+                    <Text style={styles.recentText}>{r.toUpperCase()}</Text>
+                    <Ionicons
+                      name="close"
+                      size={14}
+                      color={theme.colors.textMuted}
+                    />
+                  </Pressable>
+                ))}
               </View>
             </View>
           )}
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Trending Searches</Text>
-            </View>
-            <View style={styles.chips}>
-              {TRENDING.map((t, i) => chip(t, () => setQ(t), `trend-${i}`))}
-            </View>
-          </View>
-          <View style={{ height: 160 }} />
+          <View style={{ height: 120 }} />
         </ScrollView>
       ) : loading ? (
-        <View style={styles.loading}><ActivityIndicator color={theme.colors.brand} /></View>
+        <View style={styles.loading}>
+          <ActivityIndicator color={theme.colors.text} size="large" />
+        </View>
       ) : (
-        <>
-          <View style={styles.resultHead}>
-            <Text style={styles.sectionTitle}>Top Results</Text>
-            {source === 'external' && (
-              <View testID="ingest-badge" style={styles.ingestBadge}>
-                <Ionicons name="cloud-download-outline" size={12} color={theme.colors.brand} />
-                <Text style={styles.ingestText}>Fresh from catalog</Text>
-              </View>
-            )}
-          </View>
-          <ScrollView testID="search-results-list" contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
-            {artists.length > 0 && <ResultCarousel title="Artists">
-              {artists.map(artist => <ResultCard key={artist.name.toLowerCase()} title={artist.name} subtitle={`${artist.songs.length} song${artist.songs.length === 1 ? '' : 's'}`} artwork={artist.artwork} round onPress={() => router.push({ pathname: '/collection', params: { type: 'artist', name: artist.name } })} />)}
-            </ResultCarousel>}
-            {albums.length > 0 && <ResultCarousel title="Albums">
-              {albums.map(album => <ResultCard key={`${album.title}-${album.artist}`.toLowerCase()} title={album.title} subtitle={album.artist} artwork={album.artwork} onPress={() => router.push({ pathname: '/collection', params: { type: 'album', name: album.title, artist: album.artist } })} />)}
-            </ResultCarousel>}
-            {results.length > 0 && <Text style={styles.listTitle}>Songs</Text>}
-            {results.map((song, index) => <SongRow key={song.id} song={song} showAlbum testIDPrefix="search-result" onPress={() => playQueue(results, index, { source: 'search', searchId: searchId ?? undefined, selectedPosition: index })} />)}
-            {results.length === 0 && artists.length === 0 && albums.length === 0 && (
+        <ScrollView
+          testID="search-results-list"
+          contentContainerStyle={{ paddingBottom: 180 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {artists.length > 0 && (
+            <View style={styles.resSection}>
+              <BrutalLabel style={styles.blockLabel}>ARTISTS</BrutalLabel>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.hRow}
+              >
+                {artists.map((a) => (
+                  <Pressable
+                    key={a.name.toLowerCase()}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/collection",
+                        params: { type: "artist", name: a.name },
+                      })
+                    }
+                    style={styles.hCard}
+                  >
+                    <Image
+                      source={a.artwork ? { uri: a.artwork } : undefined}
+                      style={styles.hArt}
+                      contentFit="cover"
+                    />
+                    <Text style={styles.hTitle} numberOfLines={1}>
+                      {a.name.toUpperCase()}
+                    </Text>
+                    <Text style={styles.hMeta}>{a.songs?.length ?? 0} SONGS</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          {albums.length > 0 && (
+            <View style={styles.resSection}>
+              <BrutalLabel style={styles.blockLabel}>ALBUMS</BrutalLabel>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.hRow}
+              >
+                {albums.map((al) => (
+                  <Pressable
+                    key={`${al.title}-${al.artist}`}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/collection",
+                        params: {
+                          type: "album",
+                          name: al.title,
+                          artist: al.artist,
+                        },
+                      })
+                    }
+                    style={styles.hCard}
+                  >
+                    <Image
+                      source={al.artwork ? { uri: al.artwork } : undefined}
+                      style={styles.hArt}
+                      contentFit="cover"
+                    />
+                    <Text style={styles.hTitle} numberOfLines={1}>
+                      {al.title.toUpperCase()}
+                    </Text>
+                    <Text style={styles.hMeta}>{al.artist.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          {results.length > 0 && (
+            <>
+              <BrutalLabel
+                style={[
+                  styles.blockLabel,
+                  { paddingHorizontal: 20, marginTop: 8, marginBottom: 12 },
+                ]}
+              >
+                SONGS
+              </BrutalLabel>
+              {results.map((song, index) => (
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  showAlbum
+                  testIDPrefix="search-result"
+                  onPress={() =>
+                    playQueue(results, index, {
+                      source: "search",
+                      searchId: searchId ?? undefined,
+                      selectedPosition: index,
+                    })
+                  }
+                />
+              ))}
+            </>
+          )}
+          {results.length === 0 &&
+            artists.length === 0 &&
+            albums.length === 0 && (
               <View style={styles.empty}>
-                <Ionicons name="musical-notes-outline" size={40} color={theme.colors.textDim} />
-                <Text style={styles.emptyText}>No results found</Text>
+                <Ionicons
+                  name="close-outline"
+                  size={48}
+                  color={theme.colors.textMuted}
+                />
+                <BrutalLabel style={{ marginTop: 12 }}>
+                  NO RESULTS FOUND
+                </BrutalLabel>
               </View>
             )}
-          </ScrollView>
-        </>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
-function ResultCarousel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={styles.resultSection}>
-    <Text style={styles.listTitle}>{title}</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cards}>{children}</ScrollView>
-  </View>;
-}
-
-function ResultCard({ title, subtitle, artwork, round, onPress }: { title: string; subtitle: string; artwork?: string | null; round?: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]}>
-    <Image source={artwork ? { uri: artwork } : undefined} style={[styles.cardArt, round && styles.roundArt]} contentFit="cover" />
-    <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-    <Text style={styles.cardSubtitle} numberOfLines={1}>{subtitle}</Text>
-  </Pressable>;
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.bg },
-  header: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.md },
+  safe: { flex: 1, backgroundColor: theme.colors.background },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
   searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
-    backgroundColor: theme.colors.surface, borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
-    borderWidth: 1, borderColor: theme.colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  searchInput: { flex: 1, color: theme.colors.text, fontSize: 14 },
-  scroll: { paddingHorizontal: theme.spacing.lg },
-  section: { marginBottom: theme.spacing.xl },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md },
-  sectionTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '600' },
-  clearLink: { color: theme.colors.brandLight, fontSize: 13, fontWeight: '500' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
-  chip: {
-    backgroundColor: theme.colors.surface, borderRadius: theme.radius.pill,
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm,
-    borderWidth: 1, borderColor: theme.colors.border,
+  searchInput: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
-  chipText: { color: theme.colors.textSoft, fontSize: 13 },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
-  resultHead: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
+  scroll: { paddingHorizontal: 20 },
+  blockLabel: { marginBottom: 12 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  gridItem: {
+    width: "48.5%",
+    minHeight: 60,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  ingestBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: theme.colors.surface, paddingHorizontal: theme.spacing.md, paddingVertical: 4,
-    borderRadius: theme.radius.pill,
+  gridLabel: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
   },
-  ingestText: { color: theme.colors.brand, fontSize: 11, fontWeight: '500' },
-  resultSection: { marginBottom: theme.spacing.lg },
-  listTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '600', marginHorizontal: theme.spacing.lg, marginBottom: theme.spacing.md },
-  cards: { paddingHorizontal: theme.spacing.lg, gap: theme.spacing.md },
-  card: { width: 116 },
-  cardArt: { width: 116, height: 116, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface2 },
-  roundArt: { borderRadius: 58 },
-  cardTitle: { color: theme.colors.text, fontSize: 13, fontWeight: '600', marginTop: theme.spacing.sm },
-  cardSubtitle: { color: theme.colors.textDim, fontSize: 11, marginTop: 2 },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: theme.spacing.md },
-  emptyText: { color: theme.colors.textDim, fontSize: 14 },
+  recentSection: { marginTop: 36 },
+  recentHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  recentList: { borderTopWidth: 1, borderTopColor: theme.colors.border },
+  recentRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  recentText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 100,
+  },
+  resSection: { marginBottom: 24 },
+  hRow: { gap: 12, paddingHorizontal: 20 },
+  hCard: { width: 132 },
+  hArt: { width: 132, height: 132, backgroundColor: theme.colors.secondary },
+  hTitle: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  hMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    marginTop: 3,
+    fontWeight: "600",
+  },
+  empty: { alignItems: "center", paddingVertical: 100 },
 });

@@ -31,25 +31,24 @@ export default function CollectionDetail() {
     const load = async () => {
       setLoading(true);
       try {
-        const path = params.type === 'album'
-          ? `/catalog/album?title=${encodeURIComponent(params.name)}&artist=${encodeURIComponent(params.artist || '')}`
-          : `/catalog/artist?name=${encodeURIComponent(params.name)}`;
-        let collection = await api.get<Collection>(path);
-        // External search results are not stored until played. If this
-        // collection is not local yet, rebuild it from a read-only search.
-        if (!collection.songs.length) {
-          const search = await api.get<{ artists: ArtistResult[]; albums: AlbumResult[] }>(
-            `/songs/search?q=${encodeURIComponent(params.name)}&limit=25`
-          );
-          if (params.type === 'artist') {
-            const match = search.artists.find(item => item.name.toLowerCase() === params.name.toLowerCase());
-            if (match) collection = { type: 'artist', name: match.name, artwork: match.artwork, songs: match.songs };
-          } else {
-            const match = search.albums.find(item => item.title.toLowerCase() === params.name.toLowerCase() && (!params.artist || item.artist.toLowerCase() === params.artist.toLowerCase()));
-            if (match) collection = { type: 'album', name: match.title, artist: match.artist, artwork: match.artwork, songs: match.songs };
-          }
-        }
-        setData(collection);
+        const search = await api.get<{ songs?: Song[] }>(
+          `/songs/search?q=${encodeURIComponent(params.name)}`,
+        );
+        const songs = Array.isArray(search.songs) ? search.songs : [];
+        const matchingSongs = songs.filter((song) =>
+          params.type === 'artist'
+            ? song.artist.toLowerCase() === params.name.toLowerCase()
+            : song.album?.toLowerCase() === params.name.toLowerCase() &&
+              (!params.artist || song.artist.toLowerCase() === params.artist.toLowerCase()),
+        );
+        const first = matchingSongs[0];
+        setData({
+          type: params.type,
+          name: params.name,
+          artist: params.artist,
+          artwork: first?.artwork,
+          songs: matchingSongs,
+        });
       } catch (error) {
         console.warn('Unable to load collection', error);
       } finally {

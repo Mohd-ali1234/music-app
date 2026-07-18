@@ -1,85 +1,153 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Modal, KeyboardAvoidingView, Platform } from 'react-native';
-import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { theme } from '@/src/theme';
-import { api, Playlist } from '@/src/lib/api';
-import { usePlayer } from '@/src/lib/player';
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  TextInput,
+  ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useFocusEffect } from "expo-router";
+import { theme } from "@/src/theme";
+import { api, Playlist } from "@/src/lib/api";
+import { usePlayer } from "@/src/lib/player";
+import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
+
+const TABS: { key: string; label: string }[] = [
+  { key: "playlists", label: "PLAYLISTS" },
+  { key: "albums", label: "ALBUMS" },
+  { key: "artists", label: "ARTISTS" },
+  { key: "songs", label: "SONGS" },
+];
 
 export default function Library() {
   const router = useRouter();
-  const likedCount = usePlayer(s => s.likedIds.size);
+  const likedCount = usePlayer((s) => s.likedIds.size);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
+  const [active, setActive] = useState("playlists");
 
   const load = useCallback(async () => {
     try {
-      const pls = await api.get<Playlist[]>('/playlists');
-      setPlaylists(pls || []);
-    } catch (e) { console.warn(e); }
-    finally { setLoading(false); }
+      const { playlists } = await api.get<{ playlists?: Playlist[] }>(
+        "/playlists",
+      );
+      setPlaylists(Array.isArray(playlists) ? playlists : []);
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const create = async () => {
     if (!name.trim()) return;
     try {
-      await api.post('/playlists', { name: name.trim() });
-      setName(''); setModalOpen(false); load();
-    } catch (e) { console.warn(e); }
+      await api.post("/playlists", { name: name.trim() });
+      setName("");
+      setModalOpen(false);
+      load();
+    } catch (e) {
+      console.warn(e);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.title}>Library</Text>
-        <Pressable
-          testID="create-playlist-btn"
-          onPress={() => setModalOpen(true)}
-          hitSlop={10}
-          style={styles.headerBtn}
-        >
-          <Ionicons name="add" size={26} color={theme.colors.text} />
+        <BrutalHeading size="lg">LIBRARY</BrutalHeading>
+        <Pressable testID="settings-btn" hitSlop={12} style={styles.iconBtn}>
+          <Ionicons
+            name="settings-outline"
+            size={22}
+            color={theme.colors.text}
+          />
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
+      <View style={styles.tabs}>
+        {TABS.map((t) => {
+          const isActive = active === t.key;
+          return (
+            <Pressable
+              key={t.key}
+              testID={`lib-tab-${t.key}`}
+              onPress={() => setActive(t.key)}
+              style={[styles.tab, isActive && styles.tabActive]}
+            >
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                {t.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 180 }}
+        showsVerticalScrollIndicator={false}
+      >
         <Pressable
-          testID="liked-songs-row"
-          onPress={() => router.push('/playlist/liked')}
-          style={styles.libRow}
+          testID="create-playlist-btn"
+          onPress={() => setModalOpen(true)}
+          style={styles.createRow}
         >
-          <View style={[styles.iconBox, { backgroundColor: theme.colors.liked + '22' }]}>
-            <Ionicons name="heart" size={22} color={theme.colors.liked} />
+          <View style={styles.createIcon}>
+            <Ionicons name="add" size={22} color={theme.colors.background} />
           </View>
-          <View style={styles.libInfo}>
-            <Text style={styles.libTitle}>Liked Songs</Text>
-            <Text style={styles.libMeta}>{likedCount} songs</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textDim} />
+          <Text style={styles.createText}>CREATE PLAYLIST</Text>
         </Pressable>
 
-        <View style={styles.divider} />
-
-        <View style={styles.subHeader}>
-          <Text style={styles.subTitle}>Your Playlists</Text>
-          <Text style={styles.subMeta}>{playlists.length}</Text>
-        </View>
+        <Pressable
+          testID="liked-songs-row"
+          onPress={() => router.push("/playlist/liked")}
+          style={styles.row}
+        >
+          <View style={styles.likedArt}>
+            <Ionicons name="heart" size={24} color={theme.colors.text} />
+          </View>
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowTitle}>FAVORITES</Text>
+            <Text style={styles.rowMeta}>{likedCount} SONGS</Text>
+          </View>
+          <Pressable style={styles.moreBtn} hitSlop={10}>
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={16}
+              color={theme.colors.textMuted}
+            />
+          </Pressable>
+        </Pressable>
 
         {loading ? (
-          <ActivityIndicator color={theme.colors.brand} style={{ marginTop: 32 }} />
+          <View style={styles.loading}>
+            <ActivityIndicator color={theme.colors.text} size="large" />
+          </View>
         ) : playlists.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="albums-outline" size={48} color={theme.colors.textDim} />
-            <Text style={styles.emptyText}>No playlists yet</Text>
-            <Pressable testID="empty-create-btn" onPress={() => setModalOpen(true)} style={styles.emptyCta}>
-              <Text style={styles.emptyCtaText}>Create Playlist</Text>
-            </Pressable>
+            <Ionicons
+              name="albums-outline"
+              size={48}
+              color={theme.colors.textMuted}
+            />
+            <BrutalLabel style={{ marginTop: 16 }}>
+              NO PLAYLISTS YET
+            </BrutalLabel>
           </View>
         ) : (
           playlists.map((p) => (
@@ -87,45 +155,86 @@ export default function Library() {
               key={p.id}
               testID={`playlist-row-${p.id}`}
               onPress={() => router.push(`/playlist/${p.id}`)}
-              style={styles.libRow}
+              style={styles.row}
             >
               {p.cover ? (
-                <Image source={{ uri: p.cover }} style={styles.cover} />
+                <Image
+                  source={{ uri: p.cover }}
+                  style={styles.rowArt}
+                  contentFit="cover"
+                />
               ) : (
-                <View style={[styles.cover, { backgroundColor: theme.colors.brandDark, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="musical-notes" size={20} color={theme.colors.brandLight} />
+                <View style={[styles.rowArt, styles.fallback]}>
+                  <Ionicons
+                    name="musical-notes"
+                    size={22}
+                    color={theme.colors.text}
+                  />
                 </View>
               )}
-              <View style={styles.libInfo}>
-                <Text style={styles.libTitle}>{p.name}</Text>
-                <Text style={styles.libMeta}>{p.song_count} songs</Text>
+              <View style={styles.rowInfo}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {p.name.toUpperCase()}
+                </Text>
+                <Text style={styles.rowMeta}>{p.song_count} SONGS</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textDim} />
+              <Pressable style={styles.moreBtn} hitSlop={10}>
+                <Ionicons
+                  name="ellipsis-horizontal"
+                  size={16}
+                  color={theme.colors.textMuted}
+                />
+              </Pressable>
             </Pressable>
           ))
         )}
       </ScrollView>
 
-      <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <Pressable onPress={() => setModalOpen(false)} style={StyleSheet.absoluteFill} />
+      <Modal
+        visible={modalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <Pressable
+            onPress={() => setModalOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>New Playlist</Text>
+            <BrutalHeading size="sm" style={{ marginBottom: 20 }}>
+              NEW PLAYLIST
+            </BrutalHeading>
             <TextInput
               testID="new-playlist-name"
               value={name}
               onChangeText={setName}
-              placeholder="Playlist name"
-              placeholderTextColor={theme.colors.textDim}
+              placeholder="PLAYLIST NAME"
+              placeholderTextColor={theme.colors.textMuted}
               style={styles.modalInput}
+              autoCapitalize="characters"
               autoFocus
             />
             <View style={styles.modalActions}>
-              <Pressable testID="cancel-create-playlist" onPress={() => { setModalOpen(false); setName(''); }} style={[styles.modalBtn, { backgroundColor: theme.colors.surface2 }]}>
-                <Text style={{ color: theme.colors.text }}>Cancel</Text>
+              <Pressable
+                testID="cancel-create-playlist"
+                onPress={() => {
+                  setModalOpen(false);
+                  setName("");
+                }}
+                style={[styles.modalBtn, styles.modalBtnGhost]}
+              >
+                <Text style={styles.modalBtnGhostText}>CANCEL</Text>
               </Pressable>
-              <Pressable testID="confirm-create-playlist" onPress={create} style={[styles.modalBtn, { backgroundColor: theme.colors.brand }]}>
-                <Text style={{ color: '#FFF', fontWeight: '600' }}>Create</Text>
+              <Pressable
+                testID="confirm-create-playlist"
+                onPress={create}
+                style={[styles.modalBtn, styles.modalBtnPrimary]}
+              >
+                <Text style={styles.modalBtnPrimaryText}>CREATE</Text>
               </Pressable>
             </View>
           </View>
@@ -136,37 +245,155 @@ export default function Library() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.bg },
+  safe: { flex: 1, backgroundColor: theme.colors.background },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
-  title: { color: theme.colors.text, fontSize: 28, fontWeight: '700' },
-  headerBtn: { padding: theme.spacing.sm },
-  libRow: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md,
+  iconBtn: { padding: 4 },
+  tabs: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  iconBox: { width: 52, height: 52, borderRadius: theme.radius.md, alignItems: 'center', justifyContent: 'center' },
-  cover: { width: 52, height: 52, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface2 },
-  libInfo: { flex: 1 },
-  libTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
-  libMeta: { color: theme.colors.textDim, fontSize: 12, marginTop: 3 },
-  divider: { height: 1, backgroundColor: theme.colors.divider, marginVertical: theme.spacing.md, marginHorizontal: theme.spacing.lg },
-  subHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm,
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  subTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '600' },
-  subMeta: { color: theme.colors.textDim, fontSize: 13 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: theme.spacing.md },
-  emptyText: { color: theme.colors.textDim, fontSize: 14 },
-  emptyCta: { backgroundColor: theme.colors.brand, paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.md, borderRadius: theme.radius.pill },
-  emptyCtaText: { color: '#FFF', fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl },
-  modal: { width: '100%', maxWidth: 380, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: theme.spacing.xl },
-  modalTitle: { color: theme.colors.text, fontSize: 18, fontWeight: '700', marginBottom: theme.spacing.lg },
-  modalInput: { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radius.md, padding: theme.spacing.md, fontSize: 15, borderWidth: 1, borderColor: theme.colors.border },
-  modalActions: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.lg },
-  modalBtn: { flex: 1, paddingVertical: theme.spacing.md, alignItems: 'center', borderRadius: theme.radius.pill },
+  tabActive: {
+    backgroundColor: theme.colors.text,
+    borderColor: theme.colors.text,
+  },
+  tabText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  tabTextActive: { color: theme.colors.background },
+  createRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  createIcon: {
+    width: 44,
+    height: 44,
+    borderWidth: 1,
+    borderColor: theme.colors.text,
+    backgroundColor: theme.colors.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  rowArt: { width: 56, height: 56, backgroundColor: theme.colors.secondary },
+  fallback: { alignItems: "center", justifyContent: "center" },
+  likedArt: {
+    width: 56,
+    height: 56,
+    backgroundColor: theme.colors.secondary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  rowInfo: { flex: 1, minWidth: 0 },
+  rowTitle: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  rowMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    marginTop: 3,
+    letterSpacing: 1.5,
+    fontWeight: "600",
+  },
+  moreBtn: { padding: 8 },
+  loading: { alignItems: "center", paddingVertical: 60 },
+  empty: { alignItems: "center", paddingVertical: 80 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: theme.colors.overlay,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.borderStrong,
+    padding: 24,
+  },
+  modalInput: {
+    color: theme.colors.text,
+    backgroundColor: theme.colors.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 13,
+    letterSpacing: 1,
+    marginBottom: 20,
+  },
+  modalActions: { flexDirection: "row", gap: 10 },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  modalBtnGhost: {
+    borderColor: theme.colors.border,
+    backgroundColor: "transparent",
+  },
+  modalBtnPrimary: {
+    borderColor: theme.colors.text,
+    backgroundColor: theme.colors.text,
+  },
+  modalBtnGhostText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  modalBtnPrimaryText: {
+    color: theme.colors.background,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
 });
+// "
+// Observation: Overwrite successful: /app/frontend/src/app/(tabs)/library.tsx

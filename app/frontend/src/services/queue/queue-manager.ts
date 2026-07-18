@@ -6,14 +6,19 @@ export class QueueManager {
 
   async createSession(seed: Song, fallback: Song[] = []): Promise<Song[]> {
     let playableSeed = seed;
-    if (seed.id.startsWith("external:") && seed.yt_video_id) {
-      playableSeed = await api.post<Song>("/songs/materialize", {
+    if (seed.id?.startsWith("external:") && seed.yt_video_id) {
+      const materialized = await api.post<{ song: Song }>("/songs/materialize", {
         yt_video_id: seed.yt_video_id, title: seed.title, artist: seed.artist,
-        album: seed.album, duration: seed.duration, artwork: seed.artwork,
+        album: seed.album, duration_sec: seed.duration, artwork_url: seed.artwork,
       });
+      playableSeed = materialized.song;
     }
     try {
-      this.songs = await api.post<Song[]>(`/queue/generate?song_id=${encodeURIComponent(playableSeed.id)}&size=25`);
+      const queue = await api.post<{ songs?: Song[] }>("/queue/generate", {
+        seed_song_id: playableSeed.id,
+        size: 25,
+      });
+      this.songs = Array.isArray(queue.songs) ? queue.songs : [];
     } catch {
       // Playback remains usable if queue generation is temporarily unavailable.
       this.songs = [playableSeed, ...fallback.filter(song => song.id !== seed.id && song.id !== playableSeed.id)];

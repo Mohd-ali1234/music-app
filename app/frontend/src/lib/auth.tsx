@@ -16,6 +16,15 @@ type AuthState = {
   logout: () => Promise<void>;
 };
 
+type AuthResponse = {
+  token: string;
+  user: User;
+};
+
+type CurrentUserResponse = {
+  user: User;
+};
+
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -27,8 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const tok = await getToken();
       if (tok) {
         try {
-          const me = await api.get<User>("/auth/me");
-          setUser(me);
+          const { user } = await api.get<CurrentUserResponse>("/auth/me");
+          setUser(user);
         } catch {
           await deleteToken();
         }
@@ -38,21 +47,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<{ access_token: string; user: User }>(
+    const res = await api.post<AuthResponse>(
       "/auth/login",
       { email, password },
     );
-    await saveToken(res.access_token);
+    await saveToken(res.token);
     setUser(res.user);
   }, []);
 
   const register = useCallback(
     async (email: string, password: string, name?: string) => {
-      const res = await api.post<{ access_token: string; user: User }>(
+      const res = await api.post<AuthResponse>(
         "/auth/register",
-        { email, password, name },
+        { email, password, display_name: name },
       );
-      await saveToken(res.access_token);
+      await saveToken(res.token);
       setUser(res.user);
     },
     [],
