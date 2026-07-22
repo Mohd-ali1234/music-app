@@ -52,6 +52,7 @@ export function Typography({
 const styles = StyleSheet.create({
   base: {
     fontFamily: undefined,
+    color: theme.colors.text,
   },
   uppercase: {
     textTransform: 'uppercase',

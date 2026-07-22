@@ -47,6 +47,7 @@ export type Playlist = {
   id: string;
   name: string;
   cover?: string | null;
+  cover_urls?: string[];
   song_count: number;
 };
 
@@ -81,6 +82,11 @@ export const api = {
   put: <T = unknown>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "PUT",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  patch: <T = unknown>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "PATCH",
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   del: <T = unknown>(path: string) => request<T>(path, { method: "DELETE" }),

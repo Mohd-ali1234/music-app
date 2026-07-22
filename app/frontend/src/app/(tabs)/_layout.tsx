@@ -6,14 +6,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MiniPlayer from "@/src/components/MiniPlayer";
 import { theme } from "@/src/theme";
 
-const TAB_HEIGHT = 68;
+const TAB_HEIGHT = 60;
 
 function TabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
 
   return (
     <View
-      style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 6) }]}
+      style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 0) }]}
     >
       <View style={styles.tabBarDivider} />
       <View style={styles.tabBar}>
@@ -66,6 +66,9 @@ const TAB_ICONS: Record<string, string> = {
 };
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const tabBarTotalHeight = TAB_HEIGHT + 10 + Math.max(insets.bottom, 6);
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <Tabs
@@ -96,7 +99,10 @@ export default function TabLayout() {
           }
         />
       </Tabs>
-      <View pointerEvents="box-none" style={styles.miniWrap}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.miniWrap, { bottom: tabBarTotalHeight }]}
+      >
         <MiniPlayer />
       </View>
     </View>
@@ -149,6 +155,5 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: TAB_HEIGHT + 4,
   },
 });

@@ -43,6 +43,47 @@ class UserStatsRepository:
             upsert=True,
         )
 
+    def record_listen(
+        self,
+        *,
+        user_id: str,
+        song_id: str,
+        artist_norm: str,
+        album_norm: str,
+        listened_seconds: float,
+        completion_ratio: float,
+        meaningful_play: bool,
+    ) -> None:
+        """Update only the preference fields needed for recommendations."""
+        preference = 1.0 if completion_ratio >= 0.7 else (0.25 if completion_ratio >= 0.3 else -0.5)
+        song_inc: dict[str, float | int] = {
+            "listen_count": 1,
+            "total_listened_seconds": round(listened_seconds, 2),
+            "completion_ratio_sum": completion_ratio,
+            "preference_score": preference,
+        }
+        if meaningful_play:
+            song_inc["play_count"] = 1
+        if completion_ratio >= 0.7:
+            song_inc["high_completion_count"] = 1
+        elif completion_ratio < 0.3:
+            song_inc["skip_count"] = 1
+        self._song_stats.update_one(
+            {"user_id": user_id, "song_id": song_id},
+            {"$inc": song_inc, "$set": {"last_played_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+        for collection, key, value in (
+            (self._artist_stats, "artist_norm", artist_norm),
+            (self._album_stats, "album_norm", album_norm),
+        ):
+            if not value:
+                continue
+            increments: dict[str, float | int] = {"preference_score": preference}
+            if meaningful_play:
+                increments["play_count"] = 1
+            collection.update_one({"user_id": user_id, key: value}, {"$inc": increments}, upsert=True)
+
     # --- reads: profile / home feed ---
     def top_artists(self, user_id: str, limit: int = 10) -> list[dict[str, Any]]:
         return list(
@@ -57,6 +98,18 @@ class UserStatsRepository:
             .sort("play_count", -1)
             .limit(limit)
         )
+
+    def forgotten_song_ids(self, user_id: str, limit: int = 10) -> list[str]:
+        """Loved tracks not revisited lately; skips are deliberately excluded."""
+        rows = self._song_stats.find({"user_id": user_id, "play_count": {"$gte": 2}}, {"_id": 0}).sort([("last_played_at", 1), ("preference_score", -1)]).limit(limit)
+        return [row["song_id"] for row in rows if row.get("song_id")]
+
+    def listening_summary(self, user_id: str) -> dict[str, int | float]:
+        row = next(iter(self._song_stats.aggregate([
+            {"$match": {"user_id": user_id}},
+            {"$group": {"_id": None, "songs": {"$sum": 1}, "plays": {"$sum": "$play_count"}, "seconds": {"$sum": "$total_listened_seconds"}}},
+        ])), {})
+        return {"unique_songs": int(row.get("songs", 0)), "plays": int(row.get("plays", 0)), "minutes": round(float(row.get("seconds", 0)) / 60, 1)}
 
     # --- reads: personalization signal maps ---
     def artist_play_map(self, user_id: str) -> dict[str, int]:
@@ -79,3 +132,20 @@ class UserStatsRepository:
             for d in self._song_stats.find({"user_id": user_id}, {"_id": 0})
             if d.get("song_id")
         }
+
+    @staticmethod
+    def _preference_map(collection: Any, user_id: str, key: str) -> dict[str, float]:
+        return {
+            row[key]: float(row.get("preference_score", 0))
+            for row in collection.find({"user_id": user_id}, {"_id": 0})
+            if row.get(key)
+        }
+
+    def artist_preference_map(self, user_id: str) -> dict[str, float]:
+        return self._preference_map(self._artist_stats, user_id, "artist_norm")
+
+    def album_preference_map(self, user_id: str) -> dict[str, float]:
+        return self._preference_map(self._album_stats, user_id, "album_norm")
+
+    def song_preference_map(self, user_id: str) -> dict[str, float]:
+        return self._preference_map(self._song_stats, user_id, "song_id")

@@ -6,3 +6,6 @@ export * from './Divider';
 export * from './ProgressBar';
 export * from './Slider';
 export * from './AlbumCover';
+export * from './Sheet';
+export * from './Skeleton';
+export * from './ConfirmDialog';

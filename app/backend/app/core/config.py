@@ -59,6 +59,16 @@ class Settings:
             "SemanticMusicPlayer/1.0 (contact: example@example.com)",
         )
 
+        # --- AI providers ---
+        self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()
+        self.ai_model: str = os.environ.get("AI_MODEL", "qwen2.5").strip()
+        self.ai_timeout_seconds: float = float(os.environ.get("AI_TIMEOUT_SECONDS", "30"))
+        self.ai_max_retries: int = int(os.environ.get("AI_MAX_RETRIES", "2"))
+        self.qwen_base_url: str = os.environ.get("QWEN_BASE_URL", "http://localhost:11434/v1").rstrip("/")
+        self.qwen_api_key: str = os.environ.get("QWEN_API_KEY", "")
+        self.gemini_api_key: str = os.environ.get("GEMINI_API_KEY", "")
+        self.gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip()
+
         self._validate()
 
     def _validate(self) -> None:

@@ -24,8 +24,6 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.mohd.musicapp"
@@ -64,14 +62,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e2081ebf-c5d4-4141-a0f8-85a442cf98ea"
+        "projectId": "114f9b49-1133-4e33-acdf-8dd4ad67f239"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/e2081ebf-c5d4-4141-a0f8-85a442cf98ea"
-    }
+    "owner": "6226mohammed"
   }
 }

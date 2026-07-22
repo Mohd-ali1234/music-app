@@ -25,3 +25,7 @@ class UserRepository:
 
     def insert(self, doc: dict[str, Any]) -> None:
         self._users.insert_one(doc)
+
+    def music_preferences(self, user_id: str) -> dict[str, list[str]]:
+        row = self._users.find_one({"id": user_id}, {"_id": 0, "music_preferences": 1}) or {}
+        return row.get("music_preferences") or {}

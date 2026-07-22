@@ -1,5 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { theme } from '@/src/theme';
 
 export interface ButtonProps {
@@ -12,6 +14,8 @@ export interface ButtonProps {
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** Fire a light haptic tap on press. Defaults to true; set false for rapid-fire/no-ops. */
+  haptic?: boolean;
   testID?: string;
   style?: any;
 }
@@ -26,10 +30,27 @@ export function Button({
   fullWidth = false,
   leftIcon,
   rightIcon,
+  haptic = true,
   testID,
   style,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.96, { duration: theme.motion.duration.fast });
+  };
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: theme.motion.duration.fast });
+  };
+  const handlePress = () => {
+    if (haptic) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    onPress();
+  };
 
   const baseStyles = [
     styles.base,
@@ -43,33 +64,33 @@ export function Button({
   return (
     <Pressable
       testID={testID}
-      onPress={isDisabled ? undefined : onPress}
-      style={({ pressed }) => [
-        ...baseStyles,
-        pressed && !isDisabled && styles.pressed,
-      ]}
+      onPress={isDisabled ? undefined : handlePress}
+      onPressIn={isDisabled ? undefined : handlePressIn}
+      onPressOut={isDisabled ? undefined : handlePressOut}
       disabled={isDisabled}
     >
-      {loading ? (
-        <View style={styles.spinnerContainer}>
-          <ActivityIndicator
-            color={variant === 'primary' ? '#FFF' : theme.colors.text}
-            size="small"
-          />
-        </View>
-      ) : (
-        <View style={styles.content}>
-          {leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
-          <Text style={[
-            styles.text,
-            sizeTextStyles[size],
-            variantTextStyles[variant],
-          ]}>
-            {title}
-          </Text>
-          {rightIcon && <View style={styles.iconRight}>{rightIcon}</View>}
-        </View>
-      )}
+      <Animated.View style={[...baseStyles, animatedStyle]}>
+        {loading ? (
+          <View style={styles.spinnerContainer}>
+            <ActivityIndicator
+              color={variant === 'primary' ? '#FFF' : theme.colors.text}
+              size="small"
+            />
+          </View>
+        ) : (
+          <View style={styles.content}>
+            {leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
+            <Text style={[
+              styles.text,
+              sizeTextStyles[size],
+              variantTextStyles[variant],
+            ]}>
+              {title}
+            </Text>
+            {rightIcon && <View style={styles.iconRight}>{rightIcon}</View>}
+          </View>
+        )}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -84,7 +105,6 @@ const styles = StyleSheet.create({
   },
   fullWidth: { width: '100%' },
   disabled: { opacity: theme.opacity.disabled },
-  pressed: { opacity: theme.opacity.pressed },
   content: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   iconLeft: { marginRight: theme.spacing.xs },
   iconRight: { marginLeft: theme.spacing.xs },
@@ -136,5 +156,3 @@ const variantTextStyles = {
   ghost: { color: theme.colors.textSecondary },
   danger: { color: '#FFF' },
 };
-
-import { ActivityIndicator } from 'react-native';

@@ -39,6 +39,10 @@ function RouteGuard() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="player"
+        options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="queue"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen name="playlist/[id]" />

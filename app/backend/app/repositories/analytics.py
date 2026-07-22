@@ -101,6 +101,31 @@ class AnalyticsRepository:
         doc.pop("_id", None)
         return doc
 
+    def insert_listen(
+        self,
+        *,
+        user_id: str,
+        song_id: str,
+        listened_seconds: float,
+        duration_seconds: float,
+        completion_percent: int,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Store one final per-song listen; no polling or heartbeat required."""
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "song_id": song_id,
+            "listened_seconds": round(listened_seconds, 2),
+            "duration_seconds": round(duration_seconds, 2),
+            "completion_percent": completion_percent,
+            "reason": reason,
+            "created_at": _now_iso(),
+        }
+        self._events.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
+
     def count_play_events(self, user_id: str) -> int:
         return self._events.count_documents({"user_id": user_id, "type": "play"})
 

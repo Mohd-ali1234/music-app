@@ -8,29 +8,24 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
-import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { usePlayer, formatTime } from "@/src/lib/player";
+import { theme } from "@/src/theme";
+import { Sheet, AlbumCover, ProgressBar, Typography } from "@/src/components/ui";
 
-// Palette matched directly to the reference design (pure black / monochrome).
-// Swap these for theme.colors.* if/when your theme file defines the same values.
-const C = {
-  bg: "#000000",
-  card: "#151515",
-  divider: "#242424",
-  track: "#2B2B2D",
-  border: "#333333",
-  text: "#FFFFFF",
-  textDim: "#8E8E93",
-  textDim2: "#6E6E73",
-};
+function tap() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
 
 export default function PlayerScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
+  const artSize = isWide ? 420 : Math.min(width - theme.spacing.lg * 2, 480);
   const current = usePlayer((s) => s.current);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const isLoading = usePlayer((s) => s.isLoading);
@@ -38,8 +33,6 @@ export default function PlayerScreen() {
   const duration = usePlayer((s) => s.duration);
   const shuffle = usePlayer((s) => s.shuffle);
   const repeat = usePlayer((s) => s.repeat);
-  const volume = usePlayer((s) => (s as any).volume ?? 0.72);
-  const setVolume = usePlayer((s) => (s as any).setVolume);
   const togglePlay = usePlayer((s) => s.togglePlay);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
@@ -47,119 +40,117 @@ export default function PlayerScreen() {
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const toggleLike = usePlayer((s) => s.toggleLike);
-  const liked = usePlayer((s) =>
-    current ? s.likedIds.has(current.id) : false,
-  );
+  const liked = usePlayer((s) => (current ? s.likedIds.has(current.id) : false));
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.index);
   const playFromQueue = usePlayer((s) => s.playFromQueue);
 
+  const dismiss = () => router.back();
+
   if (!current) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <Text style={{ color: C.text, textAlign: "center", marginTop: 40 }}>
-          No track playing
-        </Text>
-      </SafeAreaView>
+      <Sheet onDismiss={dismiss} header={<PlayerHeader onClose={dismiss} />}>
+        <View style={styles.emptyWrap}>
+          <Ionicons name="musical-notes-outline" size={32} color={theme.colors.textMuted} />
+          <Typography variant="bodySmall" color={theme.colors.textMuted} uppercase style={{ marginTop: theme.spacing.md }}>
+            No track playing
+          </Typography>
+        </View>
+      </Sheet>
     );
   }
 
   const progress = duration > 0 ? position / duration : 0;
-  const upNext = queue.slice(queueIndex + 1);
-
-  const onSeekTap = (e: any) => {
-    const { locationX } = e.nativeEvent;
-    e.target?.measure?.((_x: number, _y: number, w: number) => {
-      if (w && duration) seek((locationX / w) * duration);
-    });
-  };
-  const onVolumeTap = (e: any) => {
-    const { locationX } = e.nativeEvent;
-    e.target?.measure?.((_x: number, _y: number, w: number) => {
-      if (w && setVolume) setVolume(Math.min(Math.max(locationX / w, 0), 1));
-    });
-  };
+  const upNext = queue.slice(queueIndex + 1, queueIndex + 4);
+  const hasMoreQueued = queue.length - queueIndex - 1 > upNext.length;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          testID="player-close"
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.headerBtn}
+    <Sheet onDismiss={dismiss} header={<PlayerHeader onClose={dismiss} />}>
+      <View style={styles.screen}>
+        {current.artwork ? (
+          <Image
+            source={{ uri: current.artwork }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            blurRadius={70}
+          />
+        ) : null}
+        <View style={styles.screenScrim} />
+        <ScrollView
+          contentContainerStyle={[styles.body, isWide && styles.bodyWide]}
+          showsVerticalScrollIndicator={false}
         >
-          <Ionicons name="chevron-down" size={26} color={C.text} />
-        </Pressable>
-        <Pressable testID="player-more" hitSlop={12} style={styles.headerBtn}>
-          <Ionicons name="ellipsis-horizontal" size={22} color={C.text} />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[styles.body, isWide && styles.bodyWide]}
-        showsVerticalScrollIndicator={false}
-      >
         <View style={[styles.playerGrid, isWide && styles.playerGridWide]}>
           {/* Artwork */}
           <View style={[styles.artColumn, isWide && styles.artColumnWide]}>
-            <View style={[styles.artWrap, isWide && styles.artWrapWide]}>
-              <Image
-                source={current.artwork ? { uri: current.artwork } : undefined}
-                style={styles.art}
-                contentFit="cover"
-              />
+            <Animated.View
+              key={current.id}
+              entering={FadeIn.duration(theme.motion.duration.slow)}
+              style={[
+                styles.artWrap,
+                { width: artSize, height: artSize },
+                isWide && styles.artWrapWide,
+              ]}
+            >
+              <AlbumCover source={current.artwork} size={artSize} contentFit="cover" />
               {isLoading && (
                 <View style={styles.loadOverlay}>
-                  <ActivityIndicator color={C.text} />
+                  <ActivityIndicator color={theme.colors.text} />
                 </View>
               )}
-            </View>
+            </Animated.View>
           </View>
 
-          <View
-            style={[styles.detailsColumn, isWide && styles.detailsColumnWide]}
-          >
+          <View style={[styles.detailsColumn, isWide && styles.detailsColumnWide]}>
             {/* Title + like */}
             <View style={styles.titleRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.songTitle} numberOfLines={1}>
+                <Typography variant="h3" weight="black" numberOfLines={1} letterSpacing={0.3}>
                   {current.title?.toUpperCase()}
-                </Text>
-                <Text style={styles.songArtist} numberOfLines={1}>
+                </Typography>
+                <Typography
+                  variant="caption"
+                  weight="semibold"
+                  color={theme.colors.textMuted}
+                  numberOfLines={1}
+                  style={{ marginTop: theme.spacing.xs, letterSpacing: 1.1 }}
+                >
                   {current.artist?.toUpperCase()}
-                </Text>
+                </Typography>
               </View>
               <Pressable
                 testID="player-like-btn"
-                onPress={() => toggleLike(current.id)}
-                hitSlop={10}
+                onPress={() => {
+                  tap();
+                  toggleLike(current.id);
+                }}
+                hitSlop={12}
+                style={styles.iconTouchTarget}
               >
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
-                  size={26}
-                  color={liked ? C.text : C.textDim}
+                  size={28}
+                  color={liked ? theme.colors.text : theme.colors.textMuted}
                 />
               </Pressable>
             </View>
 
             {/* Progress */}
             <View style={styles.progress}>
-              <Pressable
-                onPress={onSeekTap}
-                style={styles.progressTrack}
+              <ProgressBar
                 testID="seek-bar"
-              >
-                <View
-                  style={[styles.progressFill, { width: `${progress * 100}%` }]}
-                />
-              </Pressable>
+                progress={progress}
+                onSeek={(ratio) => seek(ratio * (duration || current.duration))}
+                height={4}
+                showKnob
+              />
               <View style={styles.timeRow}>
-                <Text style={styles.timeText}>{formatTime(position)}</Text>
-                <Text style={styles.timeText}>
+                <Typography variant="tiny" color={theme.colors.textMuted} style={{ fontVariant: ["tabular-nums"] }}>
+                  {formatTime(position)}
+                </Typography>
+                <Typography variant="tiny" color={theme.colors.textMuted} style={{ fontVariant: ["tabular-nums"] }}>
                   {formatTime(duration || current.duration)}
-                </Text>
+                </Typography>
               </View>
             </View>
 
@@ -167,185 +158,178 @@ export default function PlayerScreen() {
             <View style={styles.controls}>
               <Pressable
                 testID="shuffle-btn"
-                onPress={toggleShuffle}
-                hitSlop={10}
+                onPress={() => {
+                  tap();
+                  toggleShuffle();
+                }}
+                hitSlop={12}
+                style={styles.iconTouchTarget}
               >
-                <Ionicons
-                  name="shuffle"
-                  size={22}
-                  color={shuffle ? C.text : C.textDim}
-                />
+                <Ionicons name="shuffle" size={22} color={shuffle ? theme.colors.text : theme.colors.textMuted} />
               </Pressable>
-              <Pressable testID="prev-btn" onPress={prev} hitSlop={10}>
-                <Ionicons name="play-skip-back" size={28} color={C.text} />
+              <Pressable testID="prev-btn" onPress={prev} hitSlop={12} style={styles.iconTouchTarget}>
+                <Ionicons name="play-skip-back" size={30} color={theme.colors.text} />
               </Pressable>
               <Pressable
                 testID="play-pause-btn"
-                onPress={togglePlay}
+                onPress={() => {
+                  tap();
+                  togglePlay();
+                }}
                 style={styles.playBig}
               >
                 {isLoading ? (
-                  <ActivityIndicator color={C.bg} />
+                  <ActivityIndicator color={theme.colors.background} />
                 ) : (
-                  <Ionicons
-                    name={isPlaying ? "pause" : "play"}
-                    size={26}
-                    color={C.bg}
-                  />
+                  <Ionicons name={isPlaying ? "pause" : "play"} size={30} color={theme.colors.background} />
                 )}
               </Pressable>
-              <Pressable testID="next-btn" onPress={next} hitSlop={10}>
-                <Ionicons name="play-skip-forward" size={28} color={C.text} />
+              <Pressable testID="next-btn" onPress={next} hitSlop={12} style={styles.iconTouchTarget}>
+                <Ionicons name="play-skip-forward" size={30} color={theme.colors.text} />
               </Pressable>
-              <Pressable testID="repeat-btn" onPress={cycleRepeat} hitSlop={10}>
-                <Ionicons
-                  name="repeat"
-                  size={22}
-                  color={repeat !== "off" ? C.text : C.textDim}
-                />
+              <Pressable
+                testID="repeat-btn"
+                onPress={() => {
+                  tap();
+                  cycleRepeat();
+                }}
+                hitSlop={12}
+                style={styles.iconTouchTarget}
+              >
+                <Ionicons name="repeat" size={22} color={repeat !== "off" ? theme.colors.text : theme.colors.textMuted} />
                 {repeat === "one" && (
                   <View style={styles.repeatDot}>
-                    <Text
-                      style={{ color: C.bg, fontSize: 8, fontWeight: "700" }}
-                    >
-                      1
-                    </Text>
+                    <Text style={styles.repeatDotText}>1</Text>
+                  </View>
+                )}
+                {repeat === "all" && (
+                  <View style={styles.repeatAllBadge}>
+                    <Text style={styles.repeatAllText}>ALL</Text>
                   </View>
                 )}
               </Pressable>
-            </View>
-
-            {/* Volume */}
-            <View style={styles.volumeRow}>
-              <Ionicons name="volume-low-outline" size={15} color={C.textDim} />
-              <Pressable
-                onPress={onVolumeTap}
-                style={styles.volumeTrack}
-                testID="volume-bar"
-              >
-                <View
-                  style={[styles.volumeFill, { width: `${volume * 100}%` }]}
-                />
-              </Pressable>
-              <Ionicons
-                name="volume-high-outline"
-                size={17}
-                color={C.textDim}
-              />
             </View>
           </View>
         </View>
 
-        {/* Up Next card */}
+        {/* Up Next preview */}
         <View style={[styles.queueCard, isWide && styles.queueCardWide]}>
-          <Text style={styles.queueTitle}>UP NEXT</Text>
+          <View style={styles.queueCardHeader}>
+            <Typography variant="caption" weight="bold" color={theme.colors.textMuted} uppercase letterSpacing={1.5}>
+              Up Next
+            </Typography>
+            <Pressable
+              testID="see-full-queue"
+              onPress={() => router.push("/queue")}
+              hitSlop={8}
+              style={styles.seeQueueBtn}
+            >
+              <Typography variant="tiny" weight="bold" color={theme.colors.text} uppercase letterSpacing={1}>
+                {hasMoreQueued ? `See all (${queue.length - queueIndex - 1})` : "See queue"}
+              </Typography>
+              <Ionicons name="chevron-forward" size={14} color={theme.colors.text} />
+            </Pressable>
+          </View>
 
           {upNext.length ? (
             upNext.map((song, offset) => {
               const actualIndex = queueIndex + offset + 1;
-              const isLast = offset === upNext.length - 1;
               return (
                 <Pressable
                   key={`${song.id}-${actualIndex}`}
-                  testID={`queue-song-${actualIndex}`}
+                  testID={`queue-preview-${actualIndex}`}
                   onPress={() => playFromQueue(actualIndex)}
-                  style={({ pressed }) => [
-                    styles.queueRow,
-                    !isLast && styles.queueRowDivider,
-                    pressed && styles.queueRowPressed,
-                  ]}
+                  style={({ pressed }) => [styles.queueRow, pressed && styles.queueRowPressed]}
                 >
-                  <View style={styles.queueNumberBadge}>
-                    <Text style={styles.queueNumberText}>
-                      {String(actualIndex + 1).padStart(2, "0")}
-                    </Text>
-                  </View>
+                  <AlbumCover source={song.artwork} size={40} />
                   <View style={styles.queueInfo}>
-                    <Text style={styles.queueSongTitle} numberOfLines={1}>
+                    <Typography variant="caption" weight="bold" numberOfLines={1} letterSpacing={0.3}>
                       {song.title?.toUpperCase()}
-                    </Text>
-                    <Text style={styles.queueArtist} numberOfLines={1}>
+                    </Typography>
+                    <Typography variant="tiny" color={theme.colors.textMuted} numberOfLines={1} style={{ marginTop: 3, letterSpacing: 0.8 }}>
                       {song.artist?.toUpperCase()}
-                    </Text>
+                    </Typography>
                   </View>
-                  <Text style={styles.queueDuration}>
-                    {formatTime(song.duration)}
-                  </Text>
-                  <Ionicons
-                    name="ellipsis-horizontal"
-                    size={18}
-                    color={C.textDim}
-                  />
                 </Pressable>
               );
             })
           ) : (
             <View style={styles.queueEmpty}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={26}
-                color={C.textDim}
-              />
-              <Text style={styles.queueEmptyText}>
+              <Ionicons name="checkmark-circle-outline" size={26} color={theme.colors.textMuted} />
+              <Typography variant="bodySmall" color={theme.colors.textMuted} style={{ marginTop: theme.spacing.sm }}>
                 This is the last song in the queue
-              </Text>
+              </Typography>
             </View>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </View>
+    </Sheet>
+  );
+}
+
+function PlayerHeader({ onClose }: { onClose: () => void }) {
+  return (
+    <View style={styles.header}>
+      <Pressable testID="player-close" onPress={onClose} hitSlop={12} style={styles.headerBtn}>
+        <Ionicons name="chevron-down" size={26} color={theme.colors.text} />
+      </Pressable>
+      <Pressable testID="player-more" hitSlop={12} style={styles.headerBtn}>
+        <Ionicons name="ellipsis-horizontal" size={22} color={theme.colors.text} />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80 },
+
+  screen: { flex: 1 },
+  screenScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.background,
+    opacity: 0.88,
+  },
 
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.xs,
   },
-  headerBtn: { padding: 6 },
+  headerBtn: { padding: theme.spacing.xs },
 
   body: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl,
     width: "100%",
     maxWidth: 1180,
     alignSelf: "center",
   },
-  bodyWide: { paddingHorizontal: 48 },
+  bodyWide: { paddingHorizontal: theme.spacing.xxl },
 
   playerGrid: { width: "100%" },
   playerGridWide: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 56,
-    paddingTop: 24,
+    gap: theme.spacing.xxxl - theme.spacing.sm,
+    paddingTop: theme.spacing.lg,
   },
-  artColumn: { width: "100%" },
+  artColumn: { width: "100%", alignItems: "center" },
   artColumnWide: { width: "46%", maxWidth: 480 },
   detailsColumn: { width: "100%" },
   detailsColumnWide: { flex: 1 },
 
   artWrap: {
-    aspectRatio: 1,
-    borderRadius: 20,
-    overflow: "hidden",
-    marginTop: 16,
-    backgroundColor: C.card,
+    marginTop: theme.spacing.md,
     position: "relative",
   },
   artWrapWide: {
     marginTop: 0,
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 18 },
+    ...theme.shadows.sharpLarge,
   },
-  art: { width: "100%", height: "100%" },
   loadOverlay: {
     position: "absolute",
     top: 0,
@@ -354,62 +338,39 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: theme.colors.overlay,
   },
 
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 26,
-    gap: 12,
+    marginTop: theme.spacing.xl,
+    gap: theme.spacing.md,
   },
-  songTitle: {
-    color: C.text,
-    fontSize: 23,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  songArtist: {
-    color: C.textDim,
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 6,
-    letterSpacing: 1.1,
-  },
+  iconTouchTarget: { padding: theme.spacing.xs },
 
-  progress: { marginTop: 22 },
-  progressTrack: {
-    height: 4,
-    backgroundColor: C.track,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: C.text,
-    borderRadius: 2,
-  },
+  progress: { marginTop: theme.spacing.lg },
   timeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
-  timeText: { color: C.textDim, fontSize: 11, fontVariant: ["tabular-nums"] },
 
   controls: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 28,
-    paddingHorizontal: 2,
+    marginTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.xs,
   },
   playBig: {
-    width: 66,
-    height: 66,
-    borderRadius: 18,
-    backgroundColor: C.text,
+    width: 72,
+    height: 72,
+    borderRadius: theme.radius.xl,
+    backgroundColor: theme.colors.text,
     alignItems: "center",
     justifyContent: "center",
+    ...theme.shadows.sharp,
   },
   repeatDot: {
     position: "absolute",
@@ -418,90 +379,50 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: C.text,
+    backgroundColor: theme.colors.text,
     alignItems: "center",
     justifyContent: "center",
   },
-
-  volumeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 24,
+  repeatDotText: { color: theme.colors.background, fontSize: 8, fontWeight: "700" },
+  repeatAllBadge: {
+    position: "absolute",
+    top: -7,
+    right: -12,
+    backgroundColor: theme.colors.text,
+    borderRadius: 5,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
   },
-  volumeTrack: {
-    flex: 1,
-    height: 4,
-    backgroundColor: C.track,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  volumeFill: {
-    height: "100%",
-    backgroundColor: C.textDim2,
-    borderRadius: 2,
-  },
+  repeatAllText: { color: theme.colors.background, fontSize: 7, fontWeight: "800" },
 
   queueCard: {
-    marginTop: 28,
-    backgroundColor: C.card,
-    borderRadius: 16,
-    padding: 16,
+    marginTop: theme.spacing.xl,
+    backgroundColor: theme.colors.card,
+    borderWidth: theme.borderWidth.thin,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.md,
   },
-  queueCardWide: { marginTop: 48 },
-  queueTitle: {
-    color: C.textDim,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.5,
-    marginBottom: 14,
+  queueCardWide: { marginTop: theme.spacing.xxl },
+  queueCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: theme.spacing.sm,
   },
+  seeQueueBtn: { flexDirection: "row", alignItems: "center", gap: 4, padding: theme.spacing.xs },
 
   queueRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
+    gap: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
-  queueRowDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.divider,
-  },
-  queueRowPressed: { opacity: 0.6 },
-
-  queueNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  queueNumberText: {
-    color: C.textDim,
-    fontSize: 11,
-    fontWeight: "700",
-  },
+  queueRowPressed: { opacity: theme.opacity.pressed },
   queueInfo: { flex: 1, minWidth: 0 },
-  queueSongTitle: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-  queueArtist: {
-    color: C.textDim,
-    fontSize: 11,
-    marginTop: 3,
-    letterSpacing: 0.8,
-  },
-  queueDuration: { color: C.textDim, fontSize: 12, marginRight: 4 },
 
   queueEmpty: {
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 28,
+    paddingVertical: theme.spacing.xl,
   },
-  queueEmptyText: { color: C.textDim, fontSize: 13 },
 });

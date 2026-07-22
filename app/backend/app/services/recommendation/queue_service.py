@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.providers import YouTubeClient
-from app.repositories import AnalyticsRepository, SongRepository, UserStatsRepository
+from app.repositories import AnalyticsRepository, LibraryRepository, SongRepository, UserStatsRepository
 from app.services.recommendation.context import RadioContext
 from app.services.recommendation.engine import RadioEngine
 
@@ -19,12 +19,14 @@ class QueueService:
         songs: SongRepository,
         analytics: AnalyticsRepository,
         stats: UserStatsRepository,
+        library: LibraryRepository,
         youtube: YouTubeClient,
         engine: RadioEngine | None = None,
     ) -> None:
         self._songs = songs
         self._analytics = analytics
         self._stats = stats
+        self._library = library
         self._youtube = youtube
         self._engine = engine or RadioEngine()
 
@@ -41,6 +43,7 @@ class QueueService:
             songs=self._songs,
             analytics=self._analytics,
             stats=self._stats,
+            library=self._library,
             youtube=self._youtube,
         )
         return self._engine.build(ctx, size)

@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, Pressable, PanResponder } from 'react-native';
+import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { theme } from '@/src/theme';
 
 export interface ProgressBarProps {
@@ -29,79 +35,60 @@ export function ProgressBar({
   testID,
   style,
 }: ProgressBarProps) {
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !!onSeek,
-      onMoveShouldSetPanResponder: () => !!onSeek,
-      onPanResponderGrant: () => onSeekStart?.(),
-      onPanResponderMove: (_, gestureState) => {
-        if (!onSeek) return;
-        const { locationX } = gestureState;
-        // We'll handle the width calculation in onLayout
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (!onSeek) return;
-        onSeekEnd?.();
-      },
-      onPanResponderTerminate: () => onSeekEnd?.(),
+  const trackWidth = useSharedValue(0);
+  const dragging = useSharedValue(false);
+  const dragRatio = useSharedValue(0);
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    trackWidth.value = e.nativeEvent.layout.width;
+  };
+
+  const commitSeek = (ratio: number) => onSeek?.(ratio);
+
+  const pan = Gesture.Pan()
+    .enabled(!!onSeek)
+    .onBegin((e) => {
+      if (trackWidth.value === 0) return;
+      dragging.value = true;
+      dragRatio.value = Math.max(0, Math.min(1, e.x / trackWidth.value));
+      if (onSeekStart) runOnJS(onSeekStart)();
+      runOnJS(commitSeek)(dragRatio.value);
     })
-  ).current;
-
-  const [trackWidth, setTrackWidth] = React.useState(0);
-
-  const handleLayout = (e: any) => {
-    setTrackWidth(e.nativeEvent.layout.width);
-  };
-
-  const handlePanMove = (e: any) => {
-    if (!onSeek || trackWidth === 0) return;
-    const x = e.nativeEvent.locationX;
-    const newProgress = Math.max(0, Math.min(1, x / trackWidth));
-    onSeek(newProgress);
-  };
-
-  const handlePress = (e: any) => {
-    if (!onSeek || trackWidth === 0) return;
-    onSeekStart?.();
-    const x = e.nativeEvent.locationX;
-    const newProgress = Math.max(0, Math.min(1, x / trackWidth));
-    onSeek(newProgress);
-    onSeekEnd?.();
-  };
+    .onUpdate((e) => {
+      if (trackWidth.value === 0) return;
+      dragRatio.value = Math.max(0, Math.min(1, e.x / trackWidth.value));
+      runOnJS(commitSeek)(dragRatio.value);
+    })
+    .onFinalize(() => {
+      dragging.value = false;
+      if (onSeekEnd) runOnJS(onSeekEnd)();
+    });
 
   const clampedProgress = Math.max(0, Math.min(1, progress));
 
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${(dragging.value ? dragRatio.value : clampedProgress) * 100}%`,
+  }));
+  const knobStyle = useAnimatedStyle(() => ({
+    left: `${(dragging.value ? dragRatio.value : clampedProgress) * 100}%`,
+  }));
+
   return (
-    <View
-      testID={testID}
-      style={[styles.container, { height }, style]}
-      onLayout={handleLayout}
-    >
-      <Pressable
-        {...panResponder.panHandlers}
-        onPress={handlePress}
-        onPressIn={onSeekStart}
-        onPressOut={onSeekEnd}
-        style={styles.trackWrapper}
-        hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
-      >
-        <View style={[{ height, backgroundColor: trackColor || theme.colors.secondary }, styles.track]}>
-          <View
-            style={[
-              styles.fill,
-              { width: `${clampedProgress * 100}%`, backgroundColor: fillColor || theme.colors.accent },
-            ]}
-          />
-          {showKnob && (
-            <View
-              style={[
-                styles.knob,
-                { left: `${clampedProgress * 100}%`, backgroundColor: knobColor || theme.colors.accent },
-              ]}
+    <View testID={testID} style={[styles.container, { height }, style]} onLayout={handleLayout}>
+      <GestureDetector gesture={pan}>
+        <View style={styles.trackWrapper} hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}>
+          <View style={[{ height, backgroundColor: trackColor || theme.colors.secondary }, styles.track]}>
+            <Animated.View
+              style={[styles.fill, { backgroundColor: fillColor || theme.colors.accent }, fillStyle]}
             />
-          )}
+            {showKnob && (
+              <Animated.View
+                style={[styles.knob, { backgroundColor: knobColor || theme.colors.accent }, knobStyle]}
+              />
+            )}
+          </View>
         </View>
-      </Pressable>
+      </GestureDetector>
     </View>
   );
 }

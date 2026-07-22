@@ -1,8 +1,8 @@
-// Action: file_editor create /app/frontend/src/components/SongRow.tsx --file-text "
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { theme } from "@/src/theme";
 import { Song } from "@/src/lib/api";
 import { usePlayer } from "@/src/lib/player";
@@ -10,6 +10,7 @@ import { usePlayer } from "@/src/lib/player";
 type Props = {
   song: Song;
   onPress?: () => void;
+  onRemove?: () => void;
   showAlbum?: boolean;
   testIDPrefix?: string;
   index?: number;
@@ -18,6 +19,7 @@ type Props = {
 export default function SongRow({
   song,
   onPress,
+  onRemove,
   showAlbum,
   testIDPrefix = "song-row",
   index,
@@ -63,7 +65,10 @@ export default function SongRow({
       {!isExternal && (
         <Pressable
           testID={`like-btn-${song.id}`}
-          onPress={() => toggleLike(song.id)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            toggleLike(song.id);
+          }}
           hitSlop={10}
           style={styles.iconBtn}
         >
@@ -72,6 +77,20 @@ export default function SongRow({
             size={16}
             color={liked ? theme.colors.text : theme.colors.textMuted}
           />
+        </Pressable>
+      )}
+      {onRemove && (
+        <Pressable
+          testID={`remove-btn-${song.id}`}
+          onPress={(e) => {
+            e.stopPropagation();
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            onRemove();
+          }}
+          hitSlop={10}
+          style={styles.iconBtn}
+        >
+          <Ionicons name="close-circle-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
       )}
     </Pressable>
@@ -103,7 +122,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontVariant: ["tabular-nums"],
   },
-  art: { width: 44, height: 44, backgroundColor: theme.colors.secondary },
+  art: { width: 44, height: 44, backgroundColor: theme.colors.secondary, borderRadius: theme.radius.md },
   info: { flex: 1, minWidth: 0 },
   title: {
     color: theme.colors.text,
@@ -126,5 +145,3 @@ const styles = StyleSheet.create({
   },
   iconBtn: { padding: 4 },
 });
-// "
-// Observation: Overwrite successful: /app/frontend/src/components/SongRow.tsx

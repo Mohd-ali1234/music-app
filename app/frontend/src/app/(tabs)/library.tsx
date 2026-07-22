@@ -12,13 +12,18 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { theme } from "@/src/theme";
 import { api, Playlist } from "@/src/lib/api";
 import { usePlayer } from "@/src/lib/player";
 import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
+import { AlbumCover, ConfirmDialog, Skeleton } from "@/src/components/ui";
+
+function tap() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+}
 
 const TABS: { key: string; label: string }[] = [
   { key: "playlists", label: "PLAYLISTS" },
@@ -34,7 +39,10 @@ export default function Library() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [creatingAi, setCreatingAi] = useState(false);
   const [active, setActive] = useState("playlists");
+  const [deleteTarget, setDeleteTarget] = useState<Playlist | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +75,29 @@ export default function Library() {
     }
   };
 
+  const deletePlaylist = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await api.del(`/playlists/${target.id}`);
+      setPlaylists((prev) => prev.filter((p) => p.id !== target.id));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const createWithAi = async () => {
+    if (!aiPrompt.trim()) return;
+    setCreatingAi(true);
+    try {
+      const result = await api.post<{ playlist: Playlist }>("/playlists/from-prompt", { prompt: aiPrompt.trim(), track_count: 12 });
+      setModalOpen(false); setAiPrompt(""); await load();
+      router.push(`/playlist/${result.playlist.id}`);
+    } catch (error) { console.warn("AI playlist failed", error); }
+    finally { setCreatingAi(false); }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -87,7 +118,10 @@ export default function Library() {
             <Pressable
               key={t.key}
               testID={`lib-tab-${t.key}`}
-              onPress={() => setActive(t.key)}
+              onPress={() => {
+                tap();
+                setActive(t.key);
+              }}
               style={[styles.tab, isActive && styles.tabActive]}
             >
               <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
@@ -104,13 +138,27 @@ export default function Library() {
       >
         <Pressable
           testID="create-playlist-btn"
-          onPress={() => setModalOpen(true)}
+          onPress={() => {
+            tap();
+            setModalOpen(true);
+          }}
           style={styles.createRow}
         >
           <View style={styles.createIcon}>
             <Ionicons name="add" size={22} color={theme.colors.background} />
           </View>
           <Text style={styles.createText}>CREATE PLAYLIST</Text>
+        </Pressable>
+        <Pressable
+          testID="ai-playlist-btn"
+          onPress={() => {
+            tap();
+            setModalOpen(true);
+          }}
+          style={[styles.createRow, styles.aiRow]}
+        >
+          <View style={[styles.createIcon, styles.aiIcon]}><Ionicons name="sparkles" size={20} color={theme.colors.text} /></View>
+          <View><Text style={styles.createText}>MAKE A PLAYLIST WITH AI</Text><Text style={styles.aiSub}>DESCRIBE A MOOD, MOMENT, OR SOUND</Text></View>
         </Pressable>
 
         <Pressable
@@ -135,8 +183,10 @@ export default function Library() {
         </Pressable>
 
         {loading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={theme.colors.text} size="large" />
+          <View style={{ paddingHorizontal: theme.spacing.lg, gap: theme.spacing.md, paddingTop: theme.spacing.md }}>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} height={56} radius={theme.radius.md} />
+            ))}
           </View>
         ) : playlists.length === 0 ? (
           <View style={styles.empty}>
@@ -157,28 +207,31 @@ export default function Library() {
               onPress={() => router.push(`/playlist/${p.id}`)}
               style={styles.row}
             >
-              {p.cover ? (
-                <Image
-                  source={{ uri: p.cover }}
-                  style={styles.rowArt}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={[styles.rowArt, styles.fallback]}>
-                  <Ionicons
-                    name="musical-notes"
-                    size={22}
-                    color={theme.colors.text}
-                  />
-                </View>
-              )}
+              <AlbumCover
+                source={p.cover}
+                sources={p.cover_urls}
+                size={56}
+                borderRadius={theme.radius.md}
+                fallbackIcon={
+                  <Ionicons name="musical-notes" size={22} color={theme.colors.text} />
+                }
+              />
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle} numberOfLines={1}>
                   {p.name.toUpperCase()}
                 </Text>
                 <Text style={styles.rowMeta}>{p.song_count} SONGS</Text>
               </View>
-              <Pressable style={styles.moreBtn} hitSlop={10}>
+              <Pressable
+                testID={`playlist-more-${p.id}`}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  tap();
+                  setDeleteTarget(p);
+                }}
+                style={styles.moreBtn}
+                hitSlop={10}
+              >
                 <Ionicons
                   name="ellipsis-horizontal"
                   size={16}
@@ -189,6 +242,16 @@ export default function Library() {
           ))
         )}
       </ScrollView>
+
+      <ConfirmDialog
+        testID="delete-playlist-dialog"
+        visible={!!deleteTarget}
+        title="Delete playlist?"
+        message={deleteTarget ? `"${deleteTarget.name}" will be permanently deleted.` : undefined}
+        confirmLabel="Delete"
+        onConfirm={deletePlaylist}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       <Modal
         visible={modalOpen}
@@ -218,6 +281,9 @@ export default function Library() {
               autoCapitalize="characters"
               autoFocus
             />
+            <Text style={styles.aiPromptLabel}>OR DESCRIBE THE PLAYLIST</Text>
+            <TextInput testID="ai-playlist-prompt" value={aiPrompt} onChangeText={setAiPrompt} placeholder="Rainy-night drive through Mumbai, warm and cinematic" placeholderTextColor={theme.colors.textMuted} multiline style={[styles.modalInput, styles.aiPrompt]} />
+            <Pressable testID="confirm-ai-playlist" disabled={creatingAi || !aiPrompt.trim()} onPress={createWithAi} style={[styles.aiCreate, (!aiPrompt.trim() || creatingAi) && { opacity: .45 }]}>{creatingAi ? <ActivityIndicator color={theme.colors.background}/> : <><Ionicons name="sparkles" size={16} color={theme.colors.background}/><Text style={styles.aiCreateText}>CREATE WITH AI</Text></>}</Pressable>
             <View style={styles.modalActions}>
               <Pressable
                 testID="cancel-create-playlist"
@@ -291,6 +357,7 @@ const styles = StyleSheet.create({
   createIcon: {
     width: 44,
     height: 44,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.text,
     backgroundColor: theme.colors.text,
@@ -303,6 +370,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.5,
   },
+  aiRow: { borderTopWidth: 0, backgroundColor: theme.colors.card },
+  aiIcon: { backgroundColor: theme.colors.secondary, borderColor: theme.colors.border },
+  aiSub: { color: theme.colors.textMuted, fontSize: 9, marginTop: 4, fontWeight: "700", letterSpacing: 1 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -312,11 +382,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  rowArt: { width: 56, height: 56, backgroundColor: theme.colors.secondary },
-  fallback: { alignItems: "center", justifyContent: "center" },
   likedArt: {
     width: 56,
     height: 56,
+    borderRadius: theme.radius.md,
     backgroundColor: theme.colors.secondary,
     alignItems: "center",
     justifyContent: "center",
@@ -338,7 +407,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   moreBtn: { padding: 8 },
-  loading: { alignItems: "center", paddingVertical: 60 },
   empty: { alignItems: "center", paddingVertical: 80 },
   modalOverlay: {
     flex: 1,
@@ -366,6 +434,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 20,
   },
+  aiPromptLabel: { color: theme.colors.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 1.2, marginBottom: 8 },
+  aiPrompt: { height: 82, textAlignVertical: "top", marginBottom: 12 },
+  aiCreate: { backgroundColor: theme.colors.text, minHeight: 46, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginBottom: 12 },
+  aiCreateText: { color: theme.colors.background, fontSize: 11, fontWeight: "800", letterSpacing: 1.3 },
   modalActions: { flexDirection: "row", gap: 10 },
   modalBtn: {
     flex: 1,
@@ -395,5 +467,3 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
 });
-// "
-// Observation: Overwrite successful: /app/frontend/src/app/(tabs)/library.tsx

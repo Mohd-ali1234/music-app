@@ -24,7 +24,7 @@ class AuthService:
         self._users = users
 
     def register(
-        self, email: str, password: str, display_name: str | None
+        self, email: str, password: str, display_name: str | None, preferences: dict[str, list[str]] | None = None
     ) -> dict[str, Any]:
         if self._users.email_exists(email):
             raise HTTPException(status_code=409, detail="Email already registered")
@@ -34,6 +34,7 @@ class AuthService:
             "display_name": display_name or email.split("@")[0],
             "password_hash": hash_password(password),
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "music_preferences": preferences or {},
         }
         self._users.insert(doc)
         user = {k: v for k, v in doc.items() if k not in ("_id", "password_hash")}

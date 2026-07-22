@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, PanResponder } from 'react-native';
+import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { theme } from '@/src/theme';
 
 export interface SliderProps {
@@ -37,93 +43,77 @@ export function Slider({
   testID,
   style,
 }: SliderProps) {
-  const [trackWidth, setTrackWidth] = React.useState(0);
-  const [isSliding, setIsSliding] = React.useState(false);
+  const trackWidth = useSharedValue(0);
+  const dragging = useSharedValue(false);
+  const dragRatio = useSharedValue(0);
 
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabled && !!onValueChange,
-      onMoveShouldSetPanResponder: () => !disabled && !!onValueChange,
-      onPanResponderGrant: () => {
-        setIsSliding(true);
-        onSlidingStart?.();
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (disabled || !onValueChange || trackWidth === 0) return;
-        const x = gestureState.moveX;
-        const ratio = Math.max(0, Math.min(1, x / trackWidth));
-        let newValue = min + ratio * (max - min);
-        if (step > 0) {
-          newValue = Math.round(newValue / step) * step;
-        }
-        newValue = Math.max(min, Math.min(max, newValue));
-        onValueChange(newValue);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        setIsSliding(false);
-        if (disabled || !onValueChange || trackWidth === 0) return;
-        const x = gestureState.moveX;
-        const ratio = Math.max(0, Math.min(1, x / trackWidth));
-        let newValue = min + ratio * (max - min);
-        if (step > 0) {
-          newValue = Math.round(newValue / step) * step;
-        }
-        newValue = Math.max(min, Math.min(max, newValue));
-        onSlidingComplete?.(newValue);
-      },
-      onPanResponderTerminate: () => {
-        setIsSliding(false);
-        onSlidingComplete?.(value);
-      },
+  const ratioToValue = (ratio: number) => {
+    let next = min + ratio * (max - min);
+    if (step > 0) next = Math.round(next / step) * step;
+    return Math.max(min, Math.min(max, next));
+  };
+
+  const commitChange = (ratio: number) => onValueChange(ratioToValue(ratio));
+  const commitComplete = (ratio: number) => onSlidingComplete?.(ratioToValue(ratio));
+
+  const pan = Gesture.Pan()
+    .enabled(!disabled && !!onValueChange)
+    .onBegin((e) => {
+      if (trackWidth.value === 0) return;
+      dragging.value = true;
+      dragRatio.value = Math.max(0, Math.min(1, e.x / trackWidth.value));
+      if (onSlidingStart) runOnJS(onSlidingStart)();
+      runOnJS(commitChange)(dragRatio.value);
     })
-  ).current;
+    .onUpdate((e) => {
+      if (trackWidth.value === 0) return;
+      dragRatio.value = Math.max(0, Math.min(1, e.x / trackWidth.value));
+      runOnJS(commitChange)(dragRatio.value);
+    })
+    .onFinalize(() => {
+      dragging.value = false;
+      runOnJS(commitComplete)(dragRatio.value);
+    });
 
-  const clampedValue = Math.max(min, Math.min(max, Math.min(max, value)));
-  const ratio = (clampedValue - min) / (max - min);
+  const clampedValue = Math.max(min, Math.min(max, value));
+  const propRatio = (clampedValue - min) / (max - min);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${(dragging.value ? dragRatio.value : propRatio) * 100}%`,
+  }));
+  const thumbStyle = useAnimatedStyle(() => ({
+    left: `${(dragging.value ? dragRatio.value : propRatio) * 100}%`,
+    transform: [{ translateX: -thumbSize / 2 }, { scale: dragging.value ? 1.3 : 1 }],
+  }));
 
   return (
     <View
       testID={testID}
       style={[styles.container, { height: thumbSize }, style]}
-      onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+      onLayout={(e: LayoutChangeEvent) => (trackWidth.value = e.nativeEvent.layout.width)}
     >
-      <View
-        {...panResponder.panHandlers}
-        style={[
-          styles.trackWrapper,
-          { height: trackHeight, top: (thumbSize - trackHeight) / 2 },
-        ]}
-        hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
-      >
+      <GestureDetector gesture={pan}>
         <View
-          style={[
-            styles.track,
-            { backgroundColor: trackColor || theme.colors.secondary, height: trackHeight },
-          ]}
+          style={[styles.trackWrapper, { height: trackHeight, top: (thumbSize - trackHeight) / 2 }]}
+          hitSlop={{ top: 16, bottom: 16, left: 8, right: 8 }}
         >
           <View
+            style={[styles.track, { backgroundColor: trackColor || theme.colors.secondary, height: trackHeight }]}
+          >
+            <Animated.View
+              style={[styles.fill, { backgroundColor: fillColor || theme.colors.accent, height: trackHeight }, fillStyle]}
+            />
+          </View>
+          <Animated.View
             style={[
-              styles.fill,
-              { width: `${ratio * 100}%`, backgroundColor: fillColor || theme.colors.accent, height: trackHeight },
+              styles.thumb,
+              { width: thumbSize, height: thumbSize, borderRadius: thumbSize / 2, backgroundColor: thumbColor || theme.colors.accent },
+              disabled && styles.thumbDisabled,
+              thumbStyle,
             ]}
           />
         </View>
-        <View
-          style={[
-            styles.thumb,
-            {
-              width: thumbSize,
-              height: thumbSize,
-              borderRadius: thumbSize / 2,
-              left: `calc(${ratio * 100}% - ${thumbSize / 2}px)`,
-              backgroundColor: thumbColor || theme.colors.accent,
-              transform: [{ translateX: 0 }],
-            },
-            isSliding && styles.thumbActive,
-            disabled && styles.thumbDisabled,
-          ]}
-        />
-      </View>
+      </GestureDetector>
     </View>
   );
 }
@@ -138,6 +128,5 @@ const styles = StyleSheet.create({
     top: 0,
     ...theme.shadows.sharp,
   },
-  thumbActive: { transform: [{ scale: 1.3 }] },
   thumbDisabled: { opacity: theme.opacity.disabled },
 });

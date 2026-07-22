@@ -10,6 +10,7 @@ android {
   namespace "expo.modules.nativestreamresolver"
   defaultConfig {
     minSdkVersion 24
+    versionName "1.0.0"
     ndk { abiFilters "armeabi-v7a", "arm64-v8a", "x86_64" }
   }
 }

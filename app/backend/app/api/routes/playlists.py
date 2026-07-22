@@ -6,12 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import (
     get_current_user,
+    get_ai_playlist_service,
+    get_playlist_creation_service,
     get_playlist_repository,
     get_song_repository,
 )
 from app.domain import song_json
 from app.repositories import PlaylistRepository, SongRepository
-from app.schemas.playlist import PlaylistCreateIn, PlaylistUpdateIn
+from app.schemas.playlist import PlaylistCreateIn, PlaylistFromPromptIn, PlaylistFromSearchesIn, PlaylistUpdateIn
+from app.services.ai_playlist_service import AIPlaylistService
+from app.services.playlist_creation_service import PlaylistCreationService
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
@@ -26,12 +30,52 @@ def playlist_create(
     return {"playlist": doc}
 
 
+@router.post("/from-searches")
+def playlist_create_from_searches(
+    body: PlaylistFromSearchesIn,
+    user=Depends(get_current_user),
+    service: PlaylistCreationService = Depends(get_playlist_creation_service),
+):
+    """Resolve up to 15 supplied song names, then create a playable playlist."""
+    return service.create_from_searches(
+        user_id=user["id"],
+        name=body.name,
+        description=body.description,
+        song_queries=body.song_queries,
+    )
+
+@router.post("/from-prompt")
+def playlist_create_from_prompt(
+    body: PlaylistFromPromptIn,
+    user=Depends(get_current_user),
+    service: AIPlaylistService = Depends(get_ai_playlist_service),
+):
+    return service.create(user["id"], body.prompt, body.track_count)
+
+
 @router.get("")
 def playlist_list(
     user=Depends(get_current_user),
     playlists: PlaylistRepository = Depends(get_playlist_repository),
+    songs: SongRepository = Depends(get_song_repository),
 ):
-    return {"playlists": playlists.list_for_owner(user["id"])}
+    docs = playlists.list_for_owner(user["id"])
+    preview_ids = {sid for d in docs for sid in d.get("song_ids", [])[:4]}
+    songs_by_id = songs.map_by_ids(preview_ids)
+
+    result = []
+    for d in docs:
+        song_ids = d.get("song_ids", [])
+        covers: list[str] = []
+        for sid in song_ids:
+            if len(covers) >= 4:
+                break
+            row = songs_by_id.get(sid)
+            artwork = row and (row.get("artwork_url") or row.get("artwork"))
+            if artwork:
+                covers.append(artwork)
+        result.append({**d, "song_count": len(song_ids), "cover_urls": covers})
+    return {"playlists": result}
 
 
 @router.get("/{pid}")

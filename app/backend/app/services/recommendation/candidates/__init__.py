@@ -6,20 +6,20 @@ register it in :data:`DEFAULT_SOURCES`.
 """
 
 from app.services.recommendation.candidates.base import Candidate, CandidateSource
-from app.services.recommendation.candidates.co_occurrence import CoOccurrenceSource
 from app.services.recommendation.candidates.local import (
     SameAlbumSource,
     SameArtistSource,
     SimilarArtistSource,
 )
 from app.services.recommendation.candidates.youtube import YouTubeRadioSource
+from app.services.recommendation.candidates.library import LikedSongsSource
 
 # Order is cosmetic; scoring (not source order) determines ranking.
 DEFAULT_SOURCES: list[CandidateSource] = [
     SameArtistSource(),
     SameAlbumSource(),
     SimilarArtistSource(),
-    CoOccurrenceSource(),
+    LikedSongsSource(),
     YouTubeRadioSource(),
 ]
 
@@ -29,7 +29,7 @@ __all__ = [
     "SameArtistSource",
     "SameAlbumSource",
     "SimilarArtistSource",
-    "CoOccurrenceSource",
     "YouTubeRadioSource",
+    "LikedSongsSource",
     "DEFAULT_SOURCES",
 ]

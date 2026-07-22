@@ -89,25 +89,27 @@ class RadioEngine:
     # --- personalization ---
     def _personalize(self, ctx: RadioContext, candidates: list[Candidate]) -> None:
         try:
-            artist_plays = ctx.stats.artist_play_map(ctx.user_id)  # type: ignore[arg-type]
-            album_plays = ctx.stats.album_play_map(ctx.user_id)  # type: ignore[arg-type]
-            song_plays = ctx.stats.song_play_map(ctx.user_id)  # type: ignore[arg-type]
+            artist_scores = ctx.stats.artist_preference_map(ctx.user_id)  # type: ignore[arg-type]
+            album_scores = ctx.stats.album_preference_map(ctx.user_id)  # type: ignore[arg-type]
+            song_scores = ctx.stats.song_preference_map(ctx.user_id)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001
             log.warning("personalization signals unavailable", exc_info=True)
             return
-        if not (artist_plays or album_plays or song_plays):
+        if not (artist_scores or album_scores or song_scores):
             return
         for candidate in candidates:
             song = candidate.song
             artist = song.get("artist_norm") or normalize_artist(song.get("artist", ""))
             album = song.get("album_norm") or normalize_title(song.get("album", ""))
-            affinity = (
-                0.5 * _saturate(artist_plays.get(artist, 0))
-                + 0.3 * _saturate(album_plays.get(album, 0))
-                + 0.2 * _saturate(song_plays.get(song.get("id", ""), 0))
+            preference = (
+                0.5 * artist_scores.get(artist, 0)
+                + 0.3 * album_scores.get(album, 0)
+                + 0.2 * song_scores.get(song.get("id", ""), 0)
             )
-            if affinity > 0:
-                candidate.signals["user_affinity"] = affinity
+            if preference > 0:
+                candidate.signals["user_affinity"] = _saturate(preference)
+            elif preference < 0:
+                candidate.signals["user_avoidance"] = _saturate(-preference)
 
     # --- curated layout ---
     def _layout(self, candidates: list[Candidate], target: int) -> list[Candidate]:

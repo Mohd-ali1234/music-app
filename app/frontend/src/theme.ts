@@ -18,6 +18,11 @@ export const theme = {
     overlay: "rgba(0,0,0,0.85)",
     overlayLight: "rgba(255,255,255,0.05)",
 
+    // Spotify-style onboarding accent (scoped to the onboarding wizard)
+    green: "#1DB954",
+    greenDark: "#169C46",
+    onGreen: "#04120A",
+
     // Legacy aliases (kept so existing components stay functional)
     bg: "#090909",
     surface: "#111111",
@@ -46,6 +51,10 @@ export const theme = {
     lg: 4,
     xl: 6,
     pill: 4,
+    // Deliberate exception to the near-zero scale above: large overlay
+    // surfaces (bottom sheets, modals) get a soft top edge so they read as
+    // a sheet rather than a slab. Everything else stays sharp.
+    sheet: 20,
   },
   font: {
     display: 96,
@@ -113,6 +122,28 @@ export const theme = {
     pressed: 0.7,
     overlay: 0.6,
     overlayLight: 0.1,
+  },
+  motion: {
+    duration: {
+      fast: 120,
+      base: 200,
+      slow: 320,
+    },
+    spring: {
+      snappy: { damping: 22, stiffness: 260, mass: 0.9 },
+      gentle: { damping: 20, stiffness: 160, mass: 1 },
+    },
+  },
+  glass: {
+    // Legacy alias — kept so any other reader of `background` doesn't break.
+    background: "rgba(17,17,17,0.72)",
+    // True frosted look for the no-native-glass fallback: a soft light
+    // veil instead of a near-opaque black slab.
+    fallback: "rgba(255,255,255,0.06)",
+    // Neutral tint for native GlassView so the material reads as
+    // frosted glass rather than defaulting to a dark/black tint.
+    tint: "rgba(255,255,255,0.14)",
+    border: "rgba(255,255,255,0.08)",
   },
 };
 

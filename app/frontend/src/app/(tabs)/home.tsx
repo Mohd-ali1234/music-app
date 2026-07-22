@@ -5,18 +5,20 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { theme } from "@/src/theme";
 import { api, Song } from "@/src/lib/api";
 import { useAuth } from "@/src/lib/auth";
 import { usePlayer } from "@/src/lib/player";
 import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
+import { DashboardFeed, PersonalizedSections } from "@/src/components/PersonalizedSections";
+import { Skeleton } from "@/src/components/ui";
 
 export default function Home() {
   const router = useRouter();
@@ -25,15 +27,14 @@ export default function Home() {
 
   const [trending, setTrending] = useState<Song[]>([]);
   const [recent, setRecent] = useState<Song[]>([]);
+  const [feed, setFeed] = useState<DashboardFeed>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const feed = await api.get<{
-        made_for_you?: Song[];
-        recently_played?: Song[];
-      }>("/home/feed");
+      const feed = await api.get<DashboardFeed>("/home/feed");
+      setFeed(feed);
       setTrending(Array.isArray(feed.made_for_you) ? feed.made_for_you : []);
       setRecent(
         Array.isArray(feed.recently_played) ? feed.recently_played : [],
@@ -91,13 +92,19 @@ export default function Home() {
         </View>
 
         {loading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={theme.colors.text} size="large" />
+          <View style={styles.featuredBlock}>
+            <Skeleton width={120} height={11} style={{ marginBottom: theme.spacing.md }} />
+            <Skeleton height={260} radius={theme.radius.md} />
+            <View style={{ marginTop: theme.spacing.xl, gap: theme.spacing.md }}>
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} height={52} radius={theme.radius.md} />
+              ))}
+            </View>
           </View>
         ) : (
           <>
             {featured && (
-              <View style={styles.featuredBlock}>
+              <Animated.View entering={FadeInDown.duration(theme.motion.duration.slow)} style={styles.featuredBlock}>
                 <BrutalLabel style={styles.section}>FEATURED</BrutalLabel>
                 <Pressable
                   testID="featured-card"
@@ -130,11 +137,14 @@ export default function Home() {
                     </View>
                   </View>
                 </Pressable>
-              </View>
+              </Animated.View>
             )}
 
             {recent.length > 0 && (
-              <View style={styles.section}>
+              <Animated.View
+                entering={FadeInDown.duration(theme.motion.duration.slow).delay(60)}
+                style={styles.section}
+              >
                 <View style={styles.sectionHead}>
                   <BrutalLabel>RECENTLY PLAYED</BrutalLabel>
                   <BrutalLabel color={theme.colors.text}>SEE ALL</BrutalLabel>
@@ -170,45 +180,15 @@ export default function Home() {
                     </Pressable>
                   ))}
                 </View>
-              </View>
+              </Animated.View>
             )}
 
-            {trending.length > 1 && (
-              <View style={styles.section}>
-                <BrutalLabel style={{ marginBottom: 16 }}>TRENDING</BrutalLabel>
-                <View style={styles.list}>
-                  {trending.slice(1, 6).map((s, i) => (
-                    <Pressable
-                      key={s.id}
-                      testID={`trending-card-${s.id}`}
-                      onPress={() => playQueue(trending, i + 1, "home")}
-                      style={styles.listRow}
-                    >
-                      <Image
-                        source={s.artwork ? { uri: s.artwork } : undefined}
-                        style={styles.listArt}
-                        contentFit="cover"
-                      />
-                      <View style={styles.listInfo}>
-                        <Text style={styles.listTitle} numberOfLines={1}>
-                          {s.title.toUpperCase()}
-                        </Text>
-                        <Text style={styles.listArtist} numberOfLines={1}>
-                          {s.artist.toUpperCase()}
-                        </Text>
-                      </View>
-                      <Pressable style={styles.moreBtn} hitSlop={10}>
-                        <Ionicons
-                          name="ellipsis-horizontal"
-                          size={16}
-                          color={theme.colors.textMuted}
-                        />
-                      </Pressable>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            )}
+            <Animated.View entering={FadeInDown.duration(theme.motion.duration.slow).delay(120)}>
+              <PersonalizedSections
+                feed={feed}
+                onPlay={(songs, index) => playQueue(songs, index, "recommendation")}
+              />
+            </Animated.View>
 
             <View style={styles.bottomSpacer} />
           </>
@@ -230,7 +210,6 @@ const styles = StyleSheet.create({
   },
   subtitle: { marginTop: 10, lineHeight: 14 },
   iconBtn: { padding: 4 },
-  loading: { paddingVertical: 80, alignItems: "center" },
   featuredBlock: { paddingHorizontal: 20, marginBottom: 32 },
   section: { marginBottom: 32, paddingHorizontal: 20 },
   sectionHead: {
@@ -309,8 +288,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  moreBtn: { padding: 8 },
   bottomSpacer: { height: 40 },
 });
-// "
-// Observation: Overwrite successful: /app/frontend/src/app/(tabs)/home.tsx

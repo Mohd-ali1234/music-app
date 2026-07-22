@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.providers import YouTubeClient
-from app.repositories import AnalyticsRepository, SongRepository, UserStatsRepository
+from app.repositories import AnalyticsRepository, LibraryRepository, SongRepository, UserStatsRepository
 from app.utils.text import normalize_artist, normalize_title
 
 
@@ -27,6 +27,7 @@ class RadioContext:
     songs: SongRepository
     analytics: AnalyticsRepository
     stats: UserStatsRepository
+    library: LibraryRepository
     youtube: YouTubeClient
 
     @classmethod
@@ -38,6 +39,7 @@ class RadioContext:
         songs: SongRepository,
         analytics: AnalyticsRepository,
         stats: UserStatsRepository,
+        library: LibraryRepository,
         youtube: YouTubeClient,
     ) -> "RadioContext":
         artist_display = seed.get("artist") or ""
@@ -56,6 +58,7 @@ class RadioContext:
             songs=songs,
             analytics=analytics,
             stats=stats,
+            library=library,
             youtube=youtube,
         )
 

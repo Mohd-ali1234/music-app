@@ -12,8 +12,12 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
+  register: (email: string, password: string, name?: string, preferences?: MusicPreferences) => Promise<void>;
   logout: () => Promise<void>;
+};
+
+export type MusicPreferences = {
+  favorite_artists: string[]; genres: string[]; languages: string[]; moods: string[]; decades: string[];
 };
 
 type AuthResponse = {
@@ -56,10 +60,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (email: string, password: string, name?: string) => {
+    async (email: string, password: string, name?: string, preferences?: MusicPreferences) => {
       const res = await api.post<AuthResponse>(
         "/auth/register",
-        { email, password, display_name: name },
+        { email, password, display_name: name, preferences },
       );
       await saveToken(res.token);
       setUser(res.user);

@@ -27,6 +27,8 @@ from app.repositories import (
 from app.services.analytics_service import AnalyticsService
 from app.services.auth_service import AuthService
 from app.services.home_service import HomeService
+from app.services.playlist_creation_service import PlaylistCreationService
+from app.services.ai_playlist_service import AIPlaylistService
 from app.services.recommendation import QueueService
 from app.services.search import SearchService
 from app.services.song_service import SongService
@@ -92,6 +94,7 @@ def get_queue_service(
         songs=SongRepository(database),
         analytics=AnalyticsRepository(database),
         stats=UserStatsRepository(database),
+        library=LibraryRepository(database),
         youtube=youtube,
     )
 
@@ -105,7 +108,24 @@ def get_home_service(
         stats=UserStatsRepository(database),
         songs=SongRepository(database),
         youtube=youtube,
+        users=UserRepository(database),
     )
+
+
+def get_playlist_creation_service(
+    database: Database = Depends(get_database),
+    youtube: YouTubeClient = Depends(get_youtube),
+) -> PlaylistCreationService:
+    return PlaylistCreationService(
+        playlists=PlaylistRepository(database),
+        songs=SongService(songs=SongRepository(database), youtube=youtube),
+        youtube=youtube,
+    )
+
+def get_ai_playlist_service(
+    creator: PlaylistCreationService = Depends(get_playlist_creation_service),
+) -> AIPlaylistService:
+    return AIPlaylistService(creator)
 
 
 def get_analytics_service(

@@ -1,11 +1,19 @@
-// Action: file_editor create /app/frontend/src/components/MiniPlayer.tsx --file-text "
-import React from "react";
+import React, { useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { usePlayer } from "@/src/lib/player";
 import { theme } from "@/src/theme";
+
+const glassAvailable = isLiquidGlassAvailable();
 
 export default function MiniPlayer() {
   const router = useRouter();
@@ -15,58 +23,81 @@ export default function MiniPlayer() {
   const duration = usePlayer((s) => s.duration);
   const togglePlay = usePlayer((s) => s.togglePlay);
 
-  if (!current) return null;
   const progress = duration > 0 ? Math.min(position / duration, 1) : 0;
+  const progressValue = useSharedValue(progress);
+  useEffect(() => {
+    progressValue.value = withTiming(progress, {
+      duration: theme.motion.duration.base,
+    });
+  }, [progress, progressValue]);
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${progressValue.value * 100}%`,
+  }));
+
+  if (!current) return null;
+
+  const Container = glassAvailable ? GlassView : View;
 
   return (
     <Pressable
       testID="mini-player"
       onPress={() => router.push("/player")}
-      style={styles.wrap}
+      style={styles.pressableWrap}
     >
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-      </View>
-      <View style={styles.row}>
-        <Image
-          source={current.artwork ? { uri: current.artwork } : undefined}
-          style={styles.art}
-          contentFit="cover"
-        />
-        <View style={styles.info}>
-          <Text style={styles.title} numberOfLines={1}>
-            {(current.title || "Unknown title").toUpperCase()}
-          </Text>
-          <Text style={styles.artist} numberOfLines={1}>
-            {(current.artist || "Unknown artist").toUpperCase()}
-          </Text>
+      <Container
+        style={styles.wrap}
+        {...(glassAvailable
+          ? { glassEffectStyle: "regular", tintColor: theme.glass.tint }
+          : {})}
+      >
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressFill, progressStyle]} />
         </View>
-        <Pressable
-          testID="mini-player-play-pause"
-          onPress={(e) => {
-            e.stopPropagation();
-            togglePlay();
-          }}
-          hitSlop={12}
-          style={styles.playBtn}
-        >
-          <Ionicons
-            name={isPlaying ? "pause" : "play"}
-            size={20}
-            color={theme.colors.text}
+        <View style={styles.row}>
+          <Image
+            source={current.artwork ? { uri: current.artwork } : undefined}
+            style={styles.art}
+            contentFit="cover"
           />
-        </Pressable>
-      </View>
+          <View style={styles.info}>
+            <Text style={styles.title} numberOfLines={1}>
+              {(current.title || "Unknown title").toUpperCase()}
+            </Text>
+            <Text style={styles.artist} numberOfLines={1}>
+              {(current.artist || "Unknown artist").toUpperCase()}
+            </Text>
+          </View>
+          <Pressable
+            testID="mini-player-play-pause"
+            onPress={(e) => {
+              e.stopPropagation();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
+              togglePlay();
+            }}
+            hitSlop={12}
+            style={styles.playBtn}
+          >
+            <Ionicons
+              name={isPlaying ? "pause" : "play"}
+              size={20}
+              color={theme.colors.text}
+            />
+          </Pressable>
+        </View>
+      </Container>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  pressableWrap: { marginHorizontal: 12 },
   wrap: {
-    marginHorizontal: 12,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    backgroundColor: glassAvailable ? undefined : theme.glass.fallback,
+    borderWidth: theme.borderWidth.thin,
+    borderColor: glassAvailable ? theme.glass.border : theme.colors.border,
+    borderRadius: theme.radius.lg,
     overflow: "hidden",
   },
   progressTrack: {
@@ -84,7 +115,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
-  art: { width: 40, height: 40, backgroundColor: theme.colors.secondary },
+  art: {
+    width: 40,
+    height: 40,
+    backgroundColor: theme.colors.secondary,
+    borderRadius: theme.radius.md,
+  },
   info: { flex: 1 },
   title: {
     color: theme.colors.text,
@@ -107,5 +143,3 @@ const styles = StyleSheet.create({
     borderLeftColor: theme.colors.border,
   },
 });
-// "
-// Observation: Overwrite successful: /app/frontend/src/components/MiniPlayer.tsx

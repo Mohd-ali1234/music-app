@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "2ed3b3bd-2a14-487e-94d9-8c4155ea5837"
+      }
+    },
+    "android": {
+      "package": "com.mohd.music"
+    }
+  }
+}
