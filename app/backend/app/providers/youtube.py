@@ -129,6 +129,13 @@ class YouTubeClient:
             }
         if settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file):
             opts["cookiefile"] = settings.ytdlp_cookies_file
+        log.info(
+            "resolve_stream(%s): pot_provider_url=%r cookies_file=%r (exists=%s)",
+            yt_video_id,
+            settings.ytdlp_pot_provider_url or None,
+            settings.ytdlp_cookies_file or None,
+            bool(settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file)),
+        )
         try:
             with YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(
