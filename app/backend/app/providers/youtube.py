@@ -120,6 +120,13 @@ class YouTubeClient:
             # try them first and only fall back to web.
             "extractor_args": {"youtube": {"player_client": ["android", "ios", "web"]}},
         }
+        if settings.ytdlp_pot_provider_url:
+            # bgutil-ytdlp-pot-provider (installed as a yt-dlp plugin) fetches
+            # a fresh proof-of-origin token from this server per request,
+            # which satisfies the bot-check without any account cookies.
+            opts["extractor_args"]["youtubepot-bgutilhttp"] = {
+                "base_url": settings.ytdlp_pot_provider_url
+            }
         if settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file):
             opts["cookiefile"] = settings.ytdlp_cookies_file
         try:

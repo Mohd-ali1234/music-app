@@ -72,6 +72,11 @@ class Settings:
             tmp_path.write_text(cookies_content, encoding="utf-8")
             cookies_file = str(tmp_path)
         self.ytdlp_cookies_file: str = cookies_file
+        # Base URL of a bgutil-ytdlp-pot-provider HTTP server (e.g.
+        # http://127.0.0.1:4416 locally, or a deployed service's URL). When
+        # set, yt-dlp fetches a fresh PO token per request instead of relying
+        # on cookies from a specific account.
+        self.ytdlp_pot_provider_url: str = os.environ.get("YTDLP_POT_PROVIDER_URL", "").strip()
 
         # --- AI providers ---
         self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()

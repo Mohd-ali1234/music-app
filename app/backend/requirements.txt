@@ -28,3 +28,7 @@ cachetools==5.5.2
 # --- External providers (YouTube / YouTube Music) ---
 yt-dlp==2026.6.9
 ytmusicapi==1.12.1
+# PO-token provider plugin: yt-dlp auto-discovers this on import and calls
+# out to a bgutil-ytdlp-pot-provider HTTP server (see YTDLP_POT_PROVIDER_URL
+# in .env.example) to bypass YouTube's bot-check without needing cookies.
+bgutil-ytdlp-pot-provider==1.3.1
