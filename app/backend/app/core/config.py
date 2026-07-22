@@ -58,6 +58,11 @@ class Settings:
             "MUSICBRAINZ_USER_AGENT",
             "SemanticMusicPlayer/1.0 (contact: example@example.com)",
         )
+        # Optional path to a Netscape-format cookies.txt for yt-dlp. Needed on
+        # hosts (Render, etc.) where YouTube blocks datacenter IPs with a
+        # "Sign in to confirm you're not a bot" error. On Render, upload the
+        # file as a Secret File and point this at its mount path.
+        self.ytdlp_cookies_file: str = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
 
         # --- AI providers ---
         self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()

@@ -11,11 +11,14 @@ identical requests within the TTL window cost zero outbound calls.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 
 from cachetools import TTLCache
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
+
+from app.core.config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -104,13 +107,21 @@ class YouTubeClient:
             hit = _STREAM_CACHE.get(yt_video_id)
             if hit:
                 return hit
+        settings = get_settings()
         opts = {
             **_YDL_BASE_OPTS,
             "extract_flat": False,
             # AVFoundation on iOS does not support YouTube's WebM/Opus audio
             # streams. Prefer the M4A/AAC variant before falling back.
             "format": "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio/best",
+            # The "web" client now frequently demands a PO token / sign-in
+            # challenge from datacenter IPs ("Sign in to confirm you're not a
+            # bot"). The android/ios clients don't require that handshake, so
+            # try them first and only fall back to web.
+            "extractor_args": {"youtube": {"player_client": ["android", "ios", "web"]}},
         }
+        if settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file):
+            opts["cookiefile"] = settings.ytdlp_cookies_file
         try:
             with YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(
