@@ -77,6 +77,12 @@ class Settings:
         # set, yt-dlp fetches a fresh PO token per request instead of relying
         # on cookies from a specific account.
         self.ytdlp_pot_provider_url: str = os.environ.get("YTDLP_POT_PROVIDER_URL", "").strip()
+        # Emit yt-dlp's full internal debug trace (which client/PO-token path
+        # was tried and why it failed) into the app logger for one stream
+        # request. Verbose, so leave off unless actively debugging.
+        self.ytdlp_verbose_logging: bool = os.environ.get(
+            "YTDLP_VERBOSE_LOGGING", ""
+        ).strip().lower() in ("1", "true", "yes")
 
         # --- AI providers ---
         self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()

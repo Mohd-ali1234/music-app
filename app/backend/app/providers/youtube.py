@@ -39,6 +39,27 @@ _YDL_BASE_OPTS = {
 }
 
 
+class _YDLLogger:
+    """Forwards yt-dlp's internal messages into the app logger.
+
+    Used only when ``YTDLP_VERBOSE_LOGGING`` is set, so Render's log stream
+    shows the same client/PO-token reasoning ``yt-dlp -v`` prints locally,
+    instead of just the final summarized error.
+    """
+
+    def debug(self, msg: str) -> None:
+        log.info("[yt-dlp] %s", msg)
+
+    def info(self, msg: str) -> None:
+        log.info("[yt-dlp] %s", msg)
+
+    def warning(self, msg: str) -> None:
+        log.warning("[yt-dlp] %s", msg)
+
+    def error(self, msg: str) -> None:
+        log.error("[yt-dlp] %s", msg)
+
+
 def _ytmusic_to_song(entry: dict) -> dict | None:
     """Convert a YouTube Music song result into the app's external song shape."""
     video_id = entry.get("videoId")
@@ -129,6 +150,11 @@ class YouTubeClient:
             }
         if settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file):
             opts["cookiefile"] = settings.ytdlp_cookies_file
+        if settings.ytdlp_verbose_logging:
+            opts["quiet"] = False
+            opts["no_warnings"] = False
+            opts["verbose"] = True
+            opts["logger"] = _YDLLogger()
         log.info(
             "resolve_stream(%s): pot_provider_url=%r cookies_file=%r (exists=%s)",
             yt_video_id,
