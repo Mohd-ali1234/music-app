@@ -13,6 +13,7 @@ working regardless of which pair their ``.env`` uses.
 from __future__ import annotations
 
 import os
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
@@ -58,11 +59,19 @@ class Settings:
             "MUSICBRAINZ_USER_AGENT",
             "SemanticMusicPlayer/1.0 (contact: example@example.com)",
         )
-        # Optional path to a Netscape-format cookies.txt for yt-dlp. Needed on
-        # hosts (Render, etc.) where YouTube blocks datacenter IPs with a
-        # "Sign in to confirm you're not a bot" error. On Render, upload the
-        # file as a Secret File and point this at its mount path.
-        self.ytdlp_cookies_file: str = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
+        # Optional Netscape-format cookies.txt for yt-dlp. Needed on hosts
+        # (Render, etc.) where YouTube blocks datacenter IPs with a "Sign in
+        # to confirm you're not a bot" error. Either point YTDLP_COOKIES_FILE
+        # at an uploaded Secret File, or paste the file's raw contents into
+        # YTDLP_COOKIES_CONTENT (a plain env var works on any plan/tier) and
+        # it's written to a temp file on startup.
+        cookies_file = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
+        cookies_content = os.environ.get("YTDLP_COOKIES_CONTENT", "").strip()
+        if not cookies_file and cookies_content:
+            tmp_path = Path(tempfile.gettempdir()) / "ytdlp_cookies.txt"
+            tmp_path.write_text(cookies_content, encoding="utf-8")
+            cookies_file = str(tmp_path)
+        self.ytdlp_cookies_file: str = cookies_file
 
         # --- AI providers ---
         self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()
