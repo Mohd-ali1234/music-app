@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     analytics,
     auth,
+    dj,
     health,
     home,
     library,
@@ -29,5 +30,6 @@ for module in (
     playlists,
     profile,
     analytics,
+    dj,
 ):
     api_router.include_router(module.router)

@@ -7,6 +7,7 @@ services never touch PyMongo directly. Repositories are cheap to construct
 """
 
 from app.repositories.analytics import AnalyticsRepository
+from app.repositories.dj import DJRepository
 from app.repositories.library import LibraryRepository
 from app.repositories.playlists import PlaylistRepository
 from app.repositories.plays import PlaysRepository
@@ -17,6 +18,7 @@ from app.repositories.users import UserRepository
 
 __all__ = [
     "AnalyticsRepository",
+    "DJRepository",
     "LibraryRepository",
     "PlaylistRepository",
     "PlaysRepository",

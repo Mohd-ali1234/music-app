@@ -16,6 +16,7 @@ from app.core.security import decode_access_token
 from app.providers import YouTubeClient, get_youtube_client
 from app.repositories import (
     AnalyticsRepository,
+    DJRepository,
     LibraryRepository,
     PlaylistRepository,
     PlaysRepository,
@@ -26,6 +27,7 @@ from app.repositories import (
 )
 from app.services.analytics_service import AnalyticsService
 from app.services.auth_service import AuthService
+from app.services.dj import DJController, DJSessionManager, InsightService
 from app.services.home_service import HomeService
 from app.services.playlist_creation_service import PlaylistCreationService
 from app.services.ai_playlist_service import AIPlaylistService
@@ -126,6 +128,26 @@ def get_ai_playlist_service(
     creator: PlaylistCreationService = Depends(get_playlist_creation_service),
 ) -> AIPlaylistService:
     return AIPlaylistService(creator)
+
+
+def get_dj_controller(
+    database: Database = Depends(get_database),
+    youtube: YouTubeClient = Depends(get_youtube),
+) -> DJController:
+    """The AI DJ. Shares every repository with the recommendation stack it
+    conducts, so DJ decisions read exactly the same data as normal radio."""
+    return DJController(
+        sessions=DJSessionManager(DJRepository(database)),
+        songs=SongRepository(database),
+        analytics=AnalyticsRepository(database),
+        stats=UserStatsRepository(database),
+        library=LibraryRepository(database),
+        youtube=youtube,
+    )
+
+
+def get_dj_insight_service() -> InsightService:
+    return InsightService()
 
 
 def get_analytics_service(

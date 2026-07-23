@@ -57,3 +57,6 @@ def ensure_indexes() -> None:
     )
     db.playlists.create_index([("owner_id", ASCENDING), ("updated_at", DESCENDING)])
     db.playlist_analytics.create_index([("playlist_id", ASCENDING)], unique=True)
+    db.dj_settings.create_index([("user_id", ASCENDING)], unique=True)
+    db.dj_sessions.create_index([("id", ASCENDING)], unique=True)
+    db.dj_sessions.create_index([("user_id", ASCENDING), ("started_at", DESCENDING)])
