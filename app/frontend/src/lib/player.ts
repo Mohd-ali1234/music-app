@@ -7,6 +7,7 @@ import {
   recordListen,
 } from "./analytics";
 import { playbackQueue } from "../services/queue/queue-manager";
+import { useDJ } from "./dj";
 import { resolveStreamUrl } from "@/modules/native-stream-resolver/src";
 
 // Identifies the newest playback request. Stream/materialization requests can
@@ -35,7 +36,54 @@ function finishListening(
   const seconds = unreportedListeningSeconds;
   unreportedListeningSeconds = 0;
   if (!song?.id || seconds <= 0) return;
-  recordListen(song.id, seconds, duration || song.duration || 1, reason).catch(() => {});
+  const total = duration || song.duration || 1;
+  recordListen(song.id, seconds, total, reason).catch(() => {});
+  reportToDJ(song.id, seconds, total, reason);
+}
+
+/**
+ * Hand one finished track to the AI DJ and apply whatever it decides.
+ *
+ * Fire-and-forget by design: the DJ is additive to playback and a failure here
+ * must never surface. Most cycles return `refreshed: false` and change nothing.
+ *
+ * The report is deferred a tick because `finishListening` runs *before* the
+ * player switches tracks. By the time the callback fires, `current` is the
+ * newly playing song, which is the correct seed for a queue rebuild.
+ */
+function reportToDJ(
+  songId: string,
+  listenedSeconds: number,
+  durationSeconds: number,
+  reason: "skipped" | "completed" | "stopped",
+) {
+  const dj = useDJ.getState();
+  if (!dj.sessionId) return;
+  setTimeout(() => {
+    const currentId = usePlayer.getState().current?.id ?? songId;
+    void useDJ
+      .getState()
+      .observe({
+        songId,
+        listenedSeconds,
+        durationSeconds,
+        reason,
+        currentSongId: currentId,
+      })
+      .then(applyDJCycle);
+  }, 0);
+}
+
+/** Apply a DJ cycle's queue to the player, if it produced one. */
+export function applyDJCycle(
+  cycle: { refreshed: boolean; songs: Song[] | null } | null,
+) {
+  if (!cycle?.refreshed || !cycle.songs?.length) return;
+  if (!playbackQueue.replaceUpcoming(cycle.songs)) return;
+  usePlayer.setState({
+    queue: playbackQueue.queue,
+    index: playbackQueue.index,
+  });
 }
 
 setAudioModeAsync({
@@ -136,6 +184,14 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       const queueIndex = playbackQueue.index;
       set({ queue, index: queueIndex });
       await get().playSong(queue[queueIndex], context);
+
+      // Hand the session to the DJ. Playlists are excluded: they own their
+      // own order, so the DJ observes them but never rewrites the queue.
+      const seedId = queue[queueIndex]?.id;
+      if (seedId && !seedId.startsWith("external:") &&
+          activePlaybackContext.source !== "playlist") {
+        void useDJ.getState().startSession(seedId).then(applyDJCycle);
+      }
     } catch (error) {
       console.warn("unable to create playback queue", error);
       set({ isLoading: false });

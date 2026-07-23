@@ -51,6 +51,38 @@ export class QueueManager {
     return this.queue;
   }
 
+  /**
+   * Swap the upcoming tracks for a DJ-generated queue, leaving the track that
+   * is currently playing (and everything already played) untouched.
+   *
+   * The DJ returns its queue seeded by the current track, so `djQueue[0]` is
+   * the song already playing and only the tail is new. History is preserved so
+   * `previous()` keeps working across a refresh.
+   *
+   * Returns `false` when there is nothing meaningful to apply, so the caller
+   * can leave the existing queue in place.
+   */
+  replaceUpcoming(djQueue: Song[]): boolean {
+    const current = this.current;
+    if (!current || djQueue.length < 2) return false;
+
+    const history = this.songs.slice(0, this.currentIndex + 1);
+    const seen = new Set(
+      history.map((song) => song.id ?? song.yt_video_id ?? ""),
+    );
+    const upcoming = djQueue.slice(1).filter((song) => {
+      const key = song.id ?? song.yt_video_id ?? "";
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!upcoming.length) return false;
+
+    this.songs = [...history, ...upcoming];
+    // currentIndex is unchanged by construction: history ends at it.
+    return true;
+  }
+
   setIndex(index: number) {
     if (index >= 0 && index < this.songs.length) this.currentIndex = index;
   }

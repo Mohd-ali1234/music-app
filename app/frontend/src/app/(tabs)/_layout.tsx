@@ -3,7 +3,10 @@ import { Tabs } from "expo-router";
 import { View, StyleSheet, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DJNarration } from "@/src/components/dj/DJNarration";
+import { DesktopShell } from "@/src/components/layout/DesktopShell";
 import MiniPlayer from "@/src/components/MiniPlayer";
+import { useBreakpoint } from "@/src/hooks/use-breakpoint";
 import { theme } from "@/src/theme";
 
 const TAB_HEIGHT = 60;
@@ -65,9 +68,53 @@ const TAB_ICONS: Record<string, string> = {
   profile: "person-outline",
 };
 
+/** The four tab routes. Shared by both shells so routing never diverges. */
+function TabScreens() {
+  return (
+    <>
+      <Tabs.Screen
+        name="home"
+        options={{ title: "HOME", tabBarButtonTestID: "tab-home" } as any}
+      />
+      <Tabs.Screen
+        name="search"
+        options={{ title: "SEARCH", tabBarButtonTestID: "tab-search" } as any}
+      />
+      <Tabs.Screen
+        name="library"
+        options={{ title: "LIBRARY", tabBarButtonTestID: "tab-library" } as any}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{ title: "PROFILE", tabBarButtonTestID: "tab-profile" } as any}
+      />
+    </>
+  );
+}
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useBreakpoint();
   const tabBarTotalHeight = TAB_HEIGHT + 10 + Math.max(insets.bottom, 6);
+
+  // Desktop swaps the *chrome* only. The same <Tabs> navigator — and therefore
+  // the same routes and the same screen components — renders inside the shell,
+  // with its tab bar suppressed in favour of the sidebar.
+  if (isDesktop) {
+    return (
+      <DesktopShell>
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            sceneStyle: { backgroundColor: theme.colors.background },
+          }}
+          tabBar={() => null}
+        >
+          {TabScreens()}
+        </Tabs>
+      </DesktopShell>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -78,31 +125,13 @@ export default function TabLayout() {
         }}
         tabBar={(props) => <TabBar {...props} />}
       >
-        <Tabs.Screen
-          name="home"
-          options={{ title: "HOME", tabBarButtonTestID: "tab-home" } as any}
-        />
-        <Tabs.Screen
-          name="search"
-          options={{ title: "SEARCH", tabBarButtonTestID: "tab-search" } as any}
-        />
-        <Tabs.Screen
-          name="library"
-          options={
-            { title: "LIBRARY", tabBarButtonTestID: "tab-library" } as any
-          }
-        />
-        <Tabs.Screen
-          name="profile"
-          options={
-            { title: "PROFILE", tabBarButtonTestID: "tab-profile" } as any
-          }
-        />
+        {TabScreens()}
       </Tabs>
       <View
         pointerEvents="box-none"
         style={[styles.miniWrap, { bottom: tabBarTotalHeight }]}
       >
+        <DJNarration style={styles.narrationMobile} />
         <MiniPlayer />
       </View>
     </View>
@@ -155,5 +184,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
+  },
+  narrationMobile: {
+    marginBottom: theme.spacing.sm,
   },
 });

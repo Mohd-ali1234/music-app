@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/lib/auth";
+import { useDJ } from "@/src/lib/dj";
 import { usePlayer } from "@/src/lib/player";
 import { MediaSession } from "@/src/components/media-session";
 
@@ -19,13 +20,19 @@ function RouteGuard() {
   const segments = useSegments();
   const router = useRouter();
   const loadLiked = usePlayer((s) => s.loadLiked);
+  const loadDJConfig = useDJ((s) => s.loadConfig);
 
   useEffect(() => {
     if (loading) return;
     const inAuth = segments[0] === "(auth)";
     if (!user && !inAuth) router.replace("/(auth)/login");
     else if (user && inAuth) router.replace("/(tabs)/home");
-    if (user) loadLiked();
+    if (user) {
+      loadLiked();
+      // Settings must be known before the first track so the DJ can honour
+      // `enabled: false` without a round trip mid-playback.
+      loadDJConfig();
+    }
   }, [user, loading, segments]);
 
   return (
@@ -43,6 +50,10 @@ function RouteGuard() {
       />
       <Stack.Screen
         name="queue"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="dj"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />
       <Stack.Screen name="playlist/[id]" />
