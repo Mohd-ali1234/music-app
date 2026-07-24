@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio, json
 from urllib import error, request
 from app.ai.types import AIMessage, AIProvider, AIProviderError, AIResponse
+from app.core.settings_store import get_gemini_api_key
 class OpenAICompatibleProvider(AIProvider):
     """Works with Qwen/Ollama/vLLM and compatible cloud providers."""
     def __init__(self, name: str, base_url: str, api_key: str, default_model: str, timeout: float, retries: int): self.name, self.base_url, self.api_key, self.default_model, self.timeout, self.retries = name, base_url.rstrip("/"), api_key, default_model, timeout, retries
@@ -20,12 +21,18 @@ class OpenAICompatibleProvider(AIProvider):
 
 
 class GeminiProvider(AIProvider):
-    """Gemini REST adapter with the same retry/timeout contract as local AI."""
+    """Gemini REST adapter with the same retry/timeout contract as local AI.
+
+    The API key is read fresh from ``settings_store`` on every call (not
+    captured at construction) so a key saved from the desktop Settings screen
+    takes effect immediately, without restarting the process.
+    """
     name = "gemini"
-    def __init__(self, api_key: str, default_model: str, timeout: float, retries: int):
-        self.api_key, self.default_model, self.timeout, self.retries = api_key, default_model, timeout, retries
+    def __init__(self, default_model: str, timeout: float, retries: int):
+        self.default_model, self.timeout, self.retries = default_model, timeout, retries
     async def complete(self, messages: list[AIMessage], *, model: str | None = None) -> AIResponse:
-        if not self.api_key:
+        api_key = get_gemini_api_key()
+        if not api_key:
             raise AIProviderError("GEMINI_API_KEY is not configured")
         chosen = model or self.default_model
         prompt = "\n\n".join(f"{m.role.upper()}: {m.content}" for m in messages)
@@ -35,29 +42,16 @@ class GeminiProvider(AIProvider):
                 f"https://generativelanguage.googleapis.com/v1/models/"
                 f"{chosen}:generateContent"
             )
-            
-            print(url)
-            print(chosen)
-
             req = request.Request(
                 url,
                 data=json.dumps(payload).encode(),
                 headers={
                     "Content-Type": "application/json",
-                    "x-goog-api-key": self.api_key,
+                    "x-goog-api-key": api_key,
                 },
             )
-
-            try:
-                with request.urlopen(req, timeout=self.timeout) as response:
-                    body = response.read().decode()
-                    print(body)
-                    return json.loads(body)
-
-            except error.HTTPError as e:
-                print("STATUS:", e.code)
-                print(e.read().decode())
-                raise
+            with request.urlopen(req, timeout=self.timeout) as response:
+                return json.loads(response.read().decode())
         for attempt in range(self.retries + 1):
             try:
                 data = await asyncio.to_thread(send)

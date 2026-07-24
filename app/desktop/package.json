@@ -1,0 +1,44 @@
+{
+  "name": "music-player-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows desktop shell for the music player: launches the local backend (connected to MongoDB Atlas) and the exported web frontend as one installable app.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "serve-handler": "^6.1.6",
+    "tree-kill": "^1.2.2"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.musicplayer.desktop",
+    "productName": "Music Player",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "resources/backend", "to": "backend" },
+      { "from": "resources/frontend", "to": "frontend" },
+      { "from": "resources/backend-env.json", "to": "backend-env.json" }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

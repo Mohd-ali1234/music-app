@@ -94,6 +94,19 @@ export function Sidebar() {
         </Typography>
       </Pressable>
 
+      {/* --- Settings entry point --- */}
+      <Pressable
+        onPress={() => router.push("/settings/ai" as never)}
+        style={styles.settingsRow}
+        accessibilityRole="button"
+        accessibilityLabel="Open settings"
+      >
+        <Ionicons name="settings-outline" size={16} color={theme.colors.textSecondary} />
+        <Typography variant="bodySmall" weight="medium" color={theme.colors.textSecondary}>
+          Settings
+        </Typography>
+      </Pressable>
+
       <View style={styles.divider} />
 
       <Typography
@@ -225,6 +238,14 @@ const styles = StyleSheet.create({
   djCardActive: {
     borderColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.secondary,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    marginHorizontal: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
   },
   djHead: {
     flexDirection: "row",

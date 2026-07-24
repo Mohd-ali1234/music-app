@@ -9,3 +9,9 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# Desktop packaging (machine-generated: downloaded/bundled binaries, PyInstaller
+# and electron-builder output, generated icon)
+app/backend/build/
+app/desktop/resources/
+app/desktop/build/icon.ico

@@ -21,6 +21,9 @@ pymongo==4.16.0
 bcrypt==5.0.0
 PyJWT==2.13.0
 
+# --- Local secret storage (desktop app: Gemini API key via OS credential store) ---
+keyring==25.6.0
+
 # --- Search ranking / caching ---
 rapidfuzz>=3.9,<4
 cachetools==5.5.2

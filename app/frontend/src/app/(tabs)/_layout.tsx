@@ -9,14 +9,14 @@ import MiniPlayer from "@/src/components/MiniPlayer";
 import { useBreakpoint } from "@/src/hooks/use-breakpoint";
 import { theme } from "@/src/theme";
 
-const TAB_HEIGHT = 60;
+const TAB_HEIGHT = 68;
 
 function TabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
 
   return (
     <View
-      style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 0) }]}
+      style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 6) }]}
     >
       <View style={styles.tabBarDivider} />
       <View style={styles.tabBar}>
@@ -95,7 +95,7 @@ function TabScreens() {
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isDesktop } = useBreakpoint();
-  const tabBarTotalHeight = TAB_HEIGHT + 10 + Math.max(insets.bottom, 6);
+  const tabBarTotalHeight = TAB_HEIGHT + 1 + Math.max(insets.bottom, 6);
 
   // Desktop swaps the *chrome* only. The same <Tabs> navigator — and therefore
   // the same routes and the same screen components — renders inside the shell,

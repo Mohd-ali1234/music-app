@@ -106,7 +106,10 @@ class YouTubeClient:
                 return hit
         try:
             if _ytmusic is None:
-                _ytmusic = YTMusic()
+                settings = get_settings()
+                # Authenticated (browser-header) requests are far less likely
+                # to be bot-blocked from datacenter IPs than anonymous ones.
+                _ytmusic = YTMusic(auth=settings.ytmusic_auth_headers or None)
             entries = _ytmusic.search(query, filter="songs", limit=limit)
         except Exception as exc:  # noqa: BLE001
             log.warning("YouTube Music search failed for %r: %s", query, exc)
@@ -146,7 +149,7 @@ class YouTubeClient:
             # a fresh proof-of-origin token from this server per request,
             # which satisfies the bot-check without any account cookies.
             opts["extractor_args"]["youtubepot-bgutilhttp"] = {
-                "base_url": settings.ytdlp_pot_provider_url
+                "base_url": [settings.ytdlp_pot_provider_url]
             }
         if settings.ytdlp_cookies_file and os.path.isfile(settings.ytdlp_cookies_file):
             opts["cookiefile"] = settings.ytdlp_cookies_file

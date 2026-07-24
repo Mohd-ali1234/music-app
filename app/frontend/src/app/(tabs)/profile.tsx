@@ -16,6 +16,7 @@ import { theme } from "@/src/theme";
 import { useAuth } from "@/src/lib/auth";
 import { api } from "@/src/lib/api";
 import { BrutalHeading, BrutalLabel } from "@/src/components/brutal/BrutalText";
+import { settingsClient } from "@/src/services/settings/settings-client";
 
 export default function Profile() {
   const { user, logout } = useAuth();
@@ -29,6 +30,7 @@ export default function Profile() {
   const [darkMode, setDarkMode] = useState(true);
   const [hqAudio, setHqAudio] = useState(true);
   const [offline, setOffline] = useState(false);
+  const [geminiConfigured, setGeminiConfigured] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +40,12 @@ export default function Profile() {
       console.warn(e);
     } finally {
       setLoading(false);
+    }
+    try {
+      const ai = await settingsClient.getAISettings();
+      setGeminiConfigured(ai.gemini_key_configured);
+    } catch (e) {
+      console.warn(e);
     }
   }, []);
 
@@ -118,6 +126,14 @@ export default function Profile() {
         <NavRow label="CROSSFADE" value="5 SEC" testID="settings-crossfade" />
         <NavRow label="EQUALIZER" value="CUSTOM" testID="settings-equalizer" />
 
+        <BrutalLabel style={styles.sectionLabel}>AI</BrutalLabel>
+        <NavRow
+          label="GEMINI API KEY"
+          value={geminiConfigured ? "CONFIGURED" : "NOT SET"}
+          testID="settings-gemini-key"
+          onPress={() => router.push("/settings/ai" as never)}
+        />
+
         <BrutalLabel style={styles.sectionLabel}>ABOUT</BrutalLabel>
         <NavRow label="ABOUT BRUTAL" testID="settings-about" />
         <NavRow label="PRIVACY POLICY" testID="settings-privacy" />
@@ -167,13 +183,15 @@ function NavRow({
   label,
   value,
   testID,
+  onPress,
 }: {
   label: string;
   value?: string;
   testID?: string;
+  onPress?: () => void;
 }) {
   return (
-    <Pressable style={styles.settingRow} testID={testID}>
+    <Pressable style={styles.settingRow} testID={testID} onPress={onPress}>
       <Text style={styles.settingLabel}>{label}</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         {value && <Text style={styles.settingValue}>{value}</Text>}

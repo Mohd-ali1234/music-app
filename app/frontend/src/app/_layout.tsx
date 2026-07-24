@@ -58,6 +58,10 @@ function RouteGuard() {
       />
       <Stack.Screen name="playlist/[id]" />
       <Stack.Screen name="collection" />
+      <Stack.Screen
+        name="settings/ai"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
     </Stack>
   );
 }

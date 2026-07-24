@@ -83,6 +83,12 @@ class Settings:
         self.ytdlp_verbose_logging: bool = os.environ.get(
             "YTDLP_VERBOSE_LOGGING", ""
         ).strip().lower() in ("1", "true", "yes")
+        # Optional browser-auth headers JSON for ytmusicapi (search). Fully
+        # anonymous requests are increasingly blocked from datacenter IPs
+        # (empty/HTML response instead of JSON). Generate locally via
+        # `ytmusicapi browser` and paste the resulting JSON file's contents
+        # into this env var — never commit it or paste it anywhere else.
+        self.ytmusic_auth_headers: str = os.environ.get("YTMUSIC_AUTH_HEADERS", "").strip()
 
         # --- AI providers ---
         self.ai_provider: str = os.environ.get("AI_PROVIDER", "qwen").strip().lower()

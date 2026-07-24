@@ -22,7 +22,7 @@ Choose exactly {track_count} real, distinct, widely searchable recordings. Match
             # structured-output workflow, independent from the app's future
             # conversational provider selection.
             client = GeminiProvider(
-                settings.gemini_api_key, settings.gemini_model,
+                settings.gemini_model,
                 settings.ai_timeout_seconds, settings.ai_max_retries,
             )
             result = asyncio.run(client.complete([AIMessage("system", "You return valid JSON only."), AIMessage("user", instruction)]))

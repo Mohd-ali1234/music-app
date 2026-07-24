@@ -269,14 +269,27 @@ export default function PlayerScreen() {
 }
 
 function PlayerHeader({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   return (
     <View style={styles.header}>
       <Pressable testID="player-close" onPress={onClose} hitSlop={12} style={styles.headerBtn}>
         <Ionicons name="chevron-down" size={26} color={theme.colors.text} />
       </Pressable>
-      <Pressable testID="player-more" hitSlop={12} style={styles.headerBtn}>
-        <Ionicons name="ellipsis-horizontal" size={22} color={theme.colors.text} />
-      </Pressable>
+      <View style={styles.headerActions}>
+        <Pressable
+          testID="player-dj"
+          onPress={() => router.push("/dj" as never)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Open AI DJ"
+          style={styles.headerBtn}
+        >
+          <Ionicons name="radio-outline" size={22} color={theme.colors.text} />
+        </Pressable>
+        <Pressable testID="player-more" hitSlop={12} style={styles.headerBtn}>
+          <Ionicons name="ellipsis-horizontal" size={22} color={theme.colors.text} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -300,6 +313,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xs,
   },
   headerBtn: { padding: theme.spacing.xs },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: theme.spacing.xs },
 
   body: {
     paddingHorizontal: theme.spacing.lg,

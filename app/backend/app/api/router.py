@@ -14,6 +14,7 @@ from app.api.routes import (
     profile,
     queue,
     search,
+    settings,
     songs,
 )
 
@@ -31,5 +32,6 @@ for module in (
     profile,
     analytics,
     dj,
+    settings,
 ):
     api_router.include_router(module.router)
